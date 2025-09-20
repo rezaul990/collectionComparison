@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Branch-wise Overdue Comparison</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h2 { margin-top: 30px; }
+    table { border-collapse: collapse; margin-top: 10px; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; font-size: 14px; }
+    th { background: #eee; }
+    input[type=file]{margin:10px 0;}
+    button{margin-top:10px;padding:6px 12px;}
+  </style>
+</head>
+<body>
+  <h1>📊 Branch Overdue Comparison</h1>
+  
+  <label>Upload Master File: </label>
+  <input type="file" id="masterFile" /><br>
+  <label>Upload Daily File: </label>
+  <input type="file" id="dailyFile" /><br>
+  
+  <button id="processBtn">Process</button>
+  <button id="downloadBtn">Download Excel</button>
+  
+  <h2>Branch-wise Summary</h2>
+  <div id="summary"></div>
+  
+  <h2>📅 Branch-Year Not Collected Qty</h2>
+  <div id="pivot"></div>
+  
+<script>
+// ---------- Utilities ----------
+function toNumberSafe(val){
+  if(val===null || val===undefined) return 0;
+  if(typeof val === "number") return val;
+  if(typeof val === "string"){
+    const cleaned = val.replace(/,/g,'').trim();
+    if(cleaned==="" || isNaN(cleaned)) return 0;
+    return Number(cleaned);
+  }
+  return Number(val)||0;
+}
+function normalizeHeader(header){
+  if(!header) return "";
+  const lower = header.toLowerCase().trim();
+  if (["branch","plaza","plaza name","plaza_name","division","area"].includes(lower)) return "branch";
+  if (["account number","account_no","code"].includes(lower)) return "account";
+  if (["customer name","customer_name","name"].includes(lower)) return "customer";
+  if (["overdue","opening","closing"].includes(lower)) return "overdue";
+  if (["credit","cr","amount received","payment"].includes(lower)) return "credit";
+  if (["debit"].includes(lower)) return "debit";
+  if (["sale_date","sale date","date"].includes(lower)) return "sale_date";
+  return lower;
+}
+function findHeaderRow(raw){
+  for (let i=0; i<raw.length; i++){
+    const row = raw[i].map(x => (x||"").toString().toLowerCase().trim());
+    if (row.includes("plaza name") || row.includes("branch") || 
+        row.includes("code") || row.includes("account number") || 
+        row.includes("credit") || row.includes("name") || row.includes("sale date")) {
+      return i;
+    }
+  }
+  return 0;
+}
+function readFile(file){
+  return new Promise((resolve)=>{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const wb = XLSX.read(e.target.result,{type:'binary'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, { header:1 });
+      const headerRowIndex = findHeaderRow(raw);
+      const headers = raw[headerRowIndex].map(h => normalizeHeader(String(h||"")));
+      const rows = raw.slice(headerRowIndex+1).map(r=>{
+        const o={};
+        headers.forEach((h,i)=> {
+          const col = h.toLowerCase();
+          if(["overdue","credit","opening","debit","closing"].includes(col)){
+            o[h] = toNumberSafe(r[i]);
+          } else {
+            o[h] = r[i];
+          }
+        });
+        return o;
+      });
+      resolve(rows);
+    };
+    reader.readAsBinaryString(file);
+  });
+}
+function makeKey(row){ 
+  return `${row.branch}|${row.account}|${row.customer}`.toLowerCase().trim();
+}
+function getYear(val) {
+  if(!val) return "Unknown";
+  if(typeof val === "number"){ // Excel serial date
+    const d = XLSX.SSF.parse_date_code(val);
+    return d ? d.y : "Unknown";
+  }
+  const d = new Date(val);
+  if(!isNaN(d)) return d.getFullYear();
+  return "Unknown";
+}
+
+// ---------- Processing ----------
+function processData(master,daily){
+  const mMap={}, dMap={};
+  master.forEach(r=>{ mMap[makeKey(r)]=r; });
+  daily.forEach(r=>{ dMap[makeKey(r)]=r; });
+  
+  const summary={}, collected=[], notcollected=[], pivot={};
+  
+  for(const [key,mRow] of Object.entries(mMap)){
+    const branch = mRow.branch || "UNKNOWN";
+    const year = getYear(mRow.sale_date);
+    if(!summary[branch]) summary[branch]={collectible:0,collected:0,collectedAmount:0};
+    summary[branch].collectible++;
+    
+    const dRow=dMap[key];
+    if(dRow){
+      const credit=toNumberSafe(dRow.credit);
+      if(credit>0){
+        summary[branch].collected++;
+        summary[branch].collectedAmount += credit;
+        collected.push({...mRow,credit,year});
+      } else {
+        notcollected.push({...mRow,credit,year});
+        if(!pivot[branch]) pivot[branch]={};
+        if(!pivot[branch][year]) pivot[branch][year]=0;
+        pivot[branch][year]++;
+      }
+    } else {
+      notcollected.push({...mRow,credit:"(missing)",year});
+      if(!pivot[branch]) pivot[branch]={};
+      if(!pivot[branch][year]) pivot[branch][year]=0;
+      pivot[branch][year]++;
+    }
+  }
+  return {summary,collected,notcollected,pivot};
+}
+
+// ---------- Rendering ----------
+function renderSummary(summary){
+  let html=`<table><tr><th>Branch</th><th>Total Collectible Qty</th><th>Total Collected Qty</th><th>Collected %</th><th>Total Collected Amount</th></tr>`;
+  for(const [branch,vals] of Object.entries(summary)){
+    const perc=((vals.collected/vals.collectible)*100).toFixed(2);
+    html+=`<tr>
+      <td>${branch}</td>
+      <td>${vals.collectible}</td>
+      <td>${vals.collected}</td>
+      <td>${perc}%</td>
+      <td>${vals.collectedAmount.toFixed(2)}</td>
+    </tr>`;
+  }
+  html+=`</table>`;
+  document.getElementById("summary").innerHTML=html;
+}
+function renderPivot(pivot){
+  if(!pivot || Object.keys(pivot).length===0){
+    document.getElementById("pivot").innerHTML="None";
+    return;
+  }
+  const years = new Set();
+  for(const b in pivot){ for(const y in pivot[b]) years.add(y); }
+  const yearArr = Array.from(years).sort();
+  
+  let html="<table><tr><th>Branch</th>";
+  yearArr.forEach(y=> html+=`<th>${y}</th>`);
+  html+="</tr>";
+  
+  for(const [branch,yearMap] of Object.entries(pivot)){
+    html+=`<tr><td>${branch}</td>`;
+    yearArr.forEach(y=>{
+      html+=`<td>${yearMap[y]||0}</td>`;
+    });
+    html+="</tr>";
+  }
+  
+  html+="</table>";
+  document.getElementById("pivot").innerHTML=html;
+}
+
+// ---------- Button bindings ----------
+document.getElementById('processBtn').addEventListener('click', ()=>{
+  const masterFile=document.getElementById('masterFile').files[0];
+  const dailyFile =document.getElementById('dailyFile').files[0];
+  if(!masterFile||!dailyFile){ alert("Please upload both files"); return; }
+  
+  Promise.all([readFile(masterFile), readFile(dailyFile)]).then(([master,daily])=>{
+    const results = processData(master,daily);
+    renderSummary(results.summary);
+    renderPivot(results.pivot);
+    window._exportData = results;
+  });
+});
+
+document.getElementById('downloadBtn').addEventListener('click', ()=>{
+  if(!window._exportData){ alert("No data yet"); return; }
+  const {summary,collected,notcollected,pivot} = window._exportData;
+  
+  // Summary sheet
+  const summaryArr=[["Branch","Collectible Qty","Collected Qty","Collected %","Collected Amount"]];
+  for(const [b,v] of Object.entries(summary)){
+    summaryArr.push([b,v.collectible,v.collected,(v.collected/v.collectible*100).toFixed(2)+"%",v.collectedAmount]);
+  }
+  
+  // Collected sheet
+  const collectedArr=[["Branch","Account","Customer","Overdue","Credit","Sale Year"]];
+  collected.forEach(r=>collectedArr.push([r.branch,r.account,r.customer,r.overdue,r.credit,r.year]));
+  
+  // Not Collected sheet
+  const notArr=[["Branch","Account","Customer","Overdue","Credit","Sale Year"]];
+  notcollected.forEach(r=>notArr.push([r.branch,r.account,r.customer,r.overdue,r.credit,r.year]));
+  
+  // Pivot sheet
+  const years = new Set();
+  for(const b in pivot){ for(const y in pivot[b]) years.add(y); }
+  const yearArr = Array.from(years).sort();
+  const pivotArr=[["Branch",...yearArr]];
+  for(const [branch,yearMap] of Object.entries(pivot)){
+    pivotArr.push([branch,...yearArr.map(y=>yearMap[y]||0)]);
+  }
+
+  // Write Workbook
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(summaryArr),"Summary");
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(collectedArr),"Collected");
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(notArr),"Not Collected");
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pivotArr),"Pivot Not Collected");
+  XLSX.writeFile(wb,"ComparisonResult.xlsx");
+});
+</script>
+</body>
+</html>
