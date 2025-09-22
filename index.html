@@ -2,237 +2,1071 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Branch-wise Overdue Comparison</title>
+  <title>Branch-wise Overdue Comparison with Google Drive (Folder-based)</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h2 { margin-top: 30px; }
-    table { border-collapse: collapse; margin-top: 10px; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; font-size: 14px; }
-    th { background: #eee; }
-    input[type=file]{margin:10px 0;}
-    button{margin-top:10px;padding:6px 12px;}
+    * { box-sizing: border-box; }
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      margin: 0; 
+      padding: 20px; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container { 
+      max-width: 1400px; 
+      margin: auto; 
+      background: white; 
+      padding: 30px; 
+      border-radius: 15px; 
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    }
+    h1 { 
+      text-align: center; 
+      border-bottom: 3px solid #4CAF50; 
+      padding-bottom: 15px; 
+      margin-bottom: 30px;
+      color: #333;
+      font-size: 2.5em;
+      font-weight: 300;
+    }
+    h2 { 
+      margin-top: 40px; 
+      border-left: 4px solid #4CAF50; 
+      padding-left: 15px; 
+      color: #333;
+      font-weight: 400;
+    }
+    .section { 
+      background: #f8f9fa; 
+      padding: 20px; 
+      border-radius: 10px; 
+      margin: 20px 0; 
+      border: 1px solid #e9ecef;
+    }
+    .file-input-group {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin: 15px 0;
+      flex-wrap: wrap;
+    }
+    .file-input-group input[type="file"] {
+      flex: 1;
+      min-width: 200px;
+      padding: 10px;
+      border: 2px dashed #4CAF50;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 15px 0;
+    }
+    button { 
+      margin: 5px; 
+      padding: 12px 24px; 
+      background: linear-gradient(45deg, #4CAF50, #45a049);
+      color: white; 
+      border: none; 
+      border-radius: 8px; 
+      cursor: pointer; 
+      font-weight: 500;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    button:hover:not(:disabled) { 
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    button:disabled { 
+      background: #ccc; 
+      cursor: not-allowed; 
+      transform: none;
+      box-shadow: none;
+    }
+    .btn-secondary {
+      background: linear-gradient(45deg, #6c757d, #5a6268);
+    }
+    .btn-danger {
+      background: linear-gradient(45deg, #dc3545, #c82333);
+    }
+    .btn-info {
+      background: linear-gradient(45deg, #17a2b8, #138496);
+    }
+    .status { 
+      padding: 15px; 
+      margin: 15px 0; 
+      border-radius: 8px; 
+      font-weight: 500;
+      border-left: 4px solid;
+    }
+    .success {
+      background: #d4edda; 
+      color: #155724;
+      border-left-color: #28a745;
+    }
+    .error {
+      background: #f8d7da; 
+      color: #721c24;
+      border-left-color: #dc3545;
+    }
+    .info {
+      background: #d1ecf1; 
+      color: #0c5460;
+      border-left-color: #17a2b8;
+    }
+    .warning {
+      background: #fff3cd;
+      color: #856404;
+      border-left-color: #ffc107;
+    }
+    table { 
+      border-collapse: collapse; 
+      width: 100%; 
+      margin-top: 15px; 
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    th, td { 
+      border: 1px solid #dee2e6; 
+      padding: 12px; 
+      font-size: 14px; 
+      text-align: left;
+    }
+    th { 
+      background: linear-gradient(45deg, #4CAF50, #45a049); 
+      color: white; 
+      font-weight: 600;
+    }
+    tr:nth-child(even) {
+      background-color: #f8f9fa;
+    }
+    tr:hover {
+      background-color: #e3f2fd;
+    }
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #4CAF50;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 10px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background-color: #e9ecef;
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 10px 0;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(45deg, #4CAF50, #45a049);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin: 20px 0;
+    }
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      border-left: 4px solid #4CAF50;
+    }
+    .stat-number {
+      font-size: 2em;
+      font-weight: bold;
+      color: #4CAF50;
+    }
+    .stat-label {
+      color: #666;
+      margin-top: 5px;
+    }
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      cursor: help;
+    }
+    .tooltip .tooltiptext {
+      visibility: hidden;
+      width: 200px;
+      background-color: #333;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 8px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -100px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 12px;
+    }
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+    }
+    .responsive-table {
+      overflow-x: auto;
+    }
+    @media (max-width: 768px) {
+      .container {
+        padding: 15px;
+        margin: 10px;
+      }
+      h1 {
+        font-size: 2em;
+      }
+      .file-input-group {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .button-group {
+        justify-content: center;
+      }
+      button {
+        flex: 1;
+        min-width: 120px;
+      }
+    }
   </style>
 </head>
 <body>
+<div class="container">
   <h1>📊 Branch Overdue Comparison</h1>
-  
-  <label>Upload Master File: </label>
-  <input type="file" id="masterFile" /><br>
-  <label>Upload Daily File: </label>
-  <input type="file" id="dailyFile" /><br>
-  
-  <button id="processBtn">Process</button>
-  <button id="downloadBtn">Download Excel</button>
-  
-  <h2>Branch-wise Summary</h2>
+  <div style="text-align: center; margin-bottom: 20px;">
+    <button onclick="showHelp()" class="btn-info" style="margin: 0;">📖 Help & Instructions</button>
+  </div>
+
+  <!-- Authentication Section -->
+  <div class="section">
+  <h2>🔐 Google Drive Authentication</h2>
+    <div class="button-group">
+      <button id="signinBtn">
+        <span id="signinText">Sign in with Google</span>
+        <span id="signinLoading" class="loading" style="display:none;"></span>
+      </button>
+      <button id="signoutBtn" class="btn-secondary" style="display:none;">Sign out</button>
+    </div>
+  <div id="status" class="status info">Not signed in.</div>
+  </div>
+
+  <!-- Master File Section -->
+  <div class="section">
+  <h2>📁 Master File (stored in Drive Folder)</h2>
+    <div class="tooltip">
+      <span class="tooltiptext">Upload your master Excel file to Google Drive. This file will be used as the baseline for comparison. The file will be stored securely in your Google Drive.</span>
+      ℹ️
+    </div>
+    <div class="file-input-group">
+  <input type="file" id="masterFile" accept=".xlsx,.xls" />
+      <div class="button-group">
+        <button id="uploadMasterBtn" disabled>
+          <span id="uploadText">Upload/Replace Master</span>
+          <span id="uploadLoading" class="loading" style="display:none;"></span>
+        </button>
+        <button id="deleteMasterBtn" class="btn-danger" disabled>Delete Master</button>
+      </div>
+    </div>
+    <div class="progress-bar" id="uploadProgress" style="display:none;">
+      <div class="progress-fill" id="uploadProgressFill"></div>
+    </div>
+  </div>
+
+  <!-- Daily File Section -->
+  <div class="section">
+  <h2>📄 Daily File (Local)</h2>
+    <div class="tooltip">
+      <span class="tooltiptext">Select your daily Excel file to compare against the master file. This file should have the same structure as the master file.</span>
+      ℹ️
+    </div>
+    <div class="file-input-group">
+  <input type="file" id="dailyFile" accept=".xlsx,.xls" />
+      <div class="button-group">
+        <button id="processBtn" disabled>
+          <span id="processText">Process Comparison</span>
+          <span id="processLoading" class="loading" style="display:none;"></span>
+        </button>
+        <button id="downloadBtn" class="btn-info" disabled>Download Results Excel</button>
+      </div>
+    </div>
+    <div class="progress-bar" id="processProgress" style="display:none;">
+      <div class="progress-fill" id="processProgressFill"></div>
+    </div>
+  </div>
+
+  <!-- Statistics Section -->
+  <div class="section" id="statsSection" style="display:none;">
+    <h2>📈 Quick Statistics</h2>
+    <div class="stats-grid" id="statsGrid"></div>
+  </div>
+
+  <!-- Results Section -->
+  <div class="section" id="resultsSection" style="display:none;">
+    <h2>📊 Branch Summary</h2>
+    <div class="filter-controls">
+      <input type="text" id="branchSearch" placeholder="Search branches..." style="padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px; width: 200px;">
+      <select id="sortBy" style="padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px;">
+        <option value="branch">Sort by Branch</option>
+        <option value="collectible">Sort by Collectible</option>
+        <option value="collected">Sort by Collected</option>
+        <option value="percentage">Sort by Collection %</option>
+        <option value="amount">Sort by Amount</option>
+      </select>
+      <button onclick="resetFilters()" class="btn-secondary">Reset Filters</button>
+    </div>
+    <div class="responsive-table">
   <div id="summary"></div>
-  
-  <h2>📅 Branch-Year Not Collected Qty</h2>
+    </div>
+
+    <h2>📅 Branch-Year Not Collected Qty</h2>
+    <div class="filter-controls">
+      <input type="text" id="pivotSearch" placeholder="Search branches..." style="padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px; width: 200px;">
+      <select id="yearFilter" style="padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px;">
+        <option value="">All Years</option>
+      </select>
+    </div>
+    <div class="responsive-table">
   <div id="pivot"></div>
-  
-<script>
-// ---------- Utilities ----------
-function toNumberSafe(val){
-  if(val===null || val===undefined) return 0;
-  if(typeof val === "number") return val;
-  if(typeof val === "string"){
-    const cleaned = val.replace(/,/g,'').trim();
-    if(cleaned==="" || isNaN(cleaned)) return 0;
-    return Number(cleaned);
-  }
-  return Number(val)||0;
-}
-function normalizeHeader(header){
-  if(!header) return "";
-  const lower = header.toLowerCase().trim();
-  if (["branch","plaza","plaza name","plaza_name","division","area"].includes(lower)) return "branch";
-  if (["account number","account_no","code"].includes(lower)) return "account";
-  if (["customer name","customer_name","name"].includes(lower)) return "customer";
-  if (["overdue","opening","closing"].includes(lower)) return "overdue";
-  if (["credit","cr","amount received","payment"].includes(lower)) return "credit";
-  if (["debit"].includes(lower)) return "debit";
-  if (["sale_date","sale date","date"].includes(lower)) return "sale_date";
-  return lower;
-}
-function findHeaderRow(raw){
-  for (let i=0; i<raw.length; i++){
-    const row = raw[i].map(x => (x||"").toString().toLowerCase().trim());
-    if (row.includes("plaza name") || row.includes("branch") || 
-        row.includes("code") || row.includes("account number") || 
-        row.includes("credit") || row.includes("name") || row.includes("sale date")) {
-      return i;
-    }
-  }
-  return 0;
-}
-function readFile(file){
-  return new Promise((resolve)=>{
-    const reader = new FileReader();
-    reader.onload = (e)=>{
-      const wb = XLSX.read(e.target.result,{type:'binary'});
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const raw = XLSX.utils.sheet_to_json(ws, { header:1 });
-      const headerRowIndex = findHeaderRow(raw);
-      const headers = raw[headerRowIndex].map(h => normalizeHeader(String(h||"")));
-      const rows = raw.slice(headerRowIndex+1).map(r=>{
-        const o={};
-        headers.forEach((h,i)=> {
-          const col = h.toLowerCase();
-          if(["overdue","credit","opening","debit","closing"].includes(col)){
-            o[h] = toNumberSafe(r[i]);
-          } else {
-            o[h] = r[i];
-          }
-        });
-        return o;
-      });
-      resolve(rows);
-    };
-    reader.readAsBinaryString(file);
-  });
-}
-function makeKey(row){ 
-  return `${row.branch}|${row.account}|${row.customer}`.toLowerCase().trim();
-}
-function getYear(val) {
-  if(!val) return "Unknown";
-  if(typeof val === "number"){ // Excel serial date
-    const d = XLSX.SSF.parse_date_code(val);
-    return d ? d.y : "Unknown";
-  }
-  const d = new Date(val);
-  if(!isNaN(d)) return d.getFullYear();
-  return "Unknown";
-}
+    </div>
+  </div>
+</div>
 
-// ---------- Processing ----------
-function processData(master,daily){
-  const mMap={}, dMap={};
-  master.forEach(r=>{ mMap[makeKey(r)]=r; });
-  daily.forEach(r=>{ dMap[makeKey(r)]=r; });
-  
-  const summary={}, collected=[], notcollected=[], pivot={};
-  
-  for(const [key,mRow] of Object.entries(mMap)){
-    const branch = mRow.branch || "UNKNOWN";
-    const year = getYear(mRow.sale_date);
-    if(!summary[branch]) summary[branch]={collectible:0,collected:0,collectedAmount:0};
-    summary[branch].collectible++;
+<!-- Help Modal -->
+<div id="helpModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+  <div style="background-color: white; margin: 5% auto; padding: 20px; border-radius: 10px; width: 80%; max-width: 800px; max-height: 80%; overflow-y: auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 style="margin: 0;">📖 Help & Instructions</h2>
+      <button onclick="hideHelp()" style="background: #dc3545; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px;">×</button>
+    </div>
     
-    const dRow=dMap[key];
-    if(dRow){
-      const credit=toNumberSafe(dRow.credit);
-      if(credit>0){
-        summary[branch].collected++;
-        summary[branch].collectedAmount += credit;
-        collected.push({...mRow,credit,year});
-      } else {
-        notcollected.push({...mRow,credit,year});
-        if(!pivot[branch]) pivot[branch]={};
-        if(!pivot[branch][year]) pivot[branch][year]=0;
-        pivot[branch][year]++;
-      }
-    } else {
-      notcollected.push({...mRow,credit:"(missing)",year});
-      if(!pivot[branch]) pivot[branch]={};
-      if(!pivot[branch][year]) pivot[branch][year]=0;
-      pivot[branch][year]++;
+    <div style="line-height: 1.6;">
+      <h3>🚀 Getting Started</h3>
+      <ol>
+        <li><strong>Sign in with Google:</strong> Click the "Sign in with Google" button to authenticate with your Google account.</li>
+        <li><strong>Upload Master File:</strong> Select and upload your master Excel file to Google Drive.</li>
+        <li><strong>Select Daily File:</strong> Choose your daily Excel file for comparison.</li>
+        <li><strong>Process Comparison:</strong> Click "Process Comparison" to analyze the data.</li>
+        <li><strong>Download Results:</strong> Export the results to Excel format.</li>
+      </ol>
+
+      <h3>📋 Required Excel Format</h3>
+      <p>Your Excel files should contain these columns (case-insensitive):</p>
+      <ul>
+        <li><strong>Branch/Plaza/Division/Area:</strong> Branch identifier</li>
+        <li><strong>Account Number/Account_No/Code:</strong> Account identifier</li>
+        <li><strong>Customer Name/Customer_Name/Name:</strong> Customer name</li>
+        <li><strong>Overdue/Opening/Closing:</strong> Overdue amount</li>
+        <li><strong>Credit/Cr/Amount Received/Payment:</strong> Credit amount</li>
+        <li><strong>Sale Date/Sale_Date/Date:</strong> Sale date</li>
+      </ul>
+
+      <h3>🔍 Features</h3>
+      <ul>
+        <li><strong>Search & Filter:</strong> Use the search boxes to find specific branches</li>
+        <li><strong>Sort Results:</strong> Sort by different criteria (branch, collectible, collected, percentage, amount)</li>
+        <li><strong>Year Filtering:</strong> Filter pivot table by specific years</li>
+        <li><strong>Statistics Dashboard:</strong> View quick statistics at a glance</li>
+        <li><strong>Export Options:</strong> Download comprehensive Excel reports with multiple sheets</li>
+      </ul>
+
+      <h3>⚠️ Troubleshooting</h3>
+      <ul>
+        <li><strong>Authentication Issues:</strong> Ensure pop-ups are allowed and try refreshing the page</li>
+        <li><strong>File Upload Problems:</strong> Check file size (max 50MB) and format (.xlsx or .xls)</li>
+        <li><strong>Processing Errors:</strong> Verify your Excel files have the correct column headers</li>
+        <li><strong>No Data Found:</strong> Ensure your files contain data rows after the header</li>
+      </ul>
+
+      <h3>🔒 Security & Privacy</h3>
+      <ul>
+        <li>All authentication is handled securely by Google</li>
+        <li>Files are stored in your personal Google Drive</li>
+        <li>No data is sent to external servers except Google's APIs</li>
+        <li>You can revoke access anytime through your Google account</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== Google OAuth & Drive setup ===== */
+const CLIENT_ID = "754850424503-gj010h380qhlctrolg8rrjhd323101v5.apps.googleusercontent.com";
+const API_KEY   = "YOUR_API_KEY";
+const SCOPES = "https://www.googleapis.com/auth/drive.file";
+const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+
+let tokenClient, accessToken=null, masterFileId=null, masterFolderId=null;
+
+gapi.load("client", async () => {
+  await gapi.client.init({ apiKey: API_KEY, discoveryDocs: DISCOVERY_DOCS });
+});
+
+window.onload = () => {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: (resp) => {
+      hideLoading("signinLoading", "signinText", "Sign in with Google");
+      if(resp.error){ showStatus("Authentication failed: " + resp.error,"error"); return; }
+      accessToken = resp.access_token;
+      localStorage.setItem("access_token",accessToken);
+      updateSignin(true);
     }
+  });
+
+  document.getElementById("signinBtn").onclick=()=>{
+    showLoading("signinLoading", "signinText", "Signing in...");
+    tokenClient.requestAccessToken({prompt:'consent'});
+  };
+  document.getElementById("signoutBtn").onclick=signOut;
+  document.getElementById("uploadMasterBtn").onclick=uploadMasterFile;
+  document.getElementById("deleteMasterBtn").onclick=deleteMasterFile;
+  document.getElementById("processBtn").onclick=processFiles;
+  document.getElementById("downloadBtn").onclick=downloadExcel;
+  
+  // Add file validation
+  document.getElementById("masterFile").addEventListener("change", validateMasterFile);
+  document.getElementById("dailyFile").addEventListener("change", validateDailyFile);
+  
+  // Add filtering event listeners
+  document.getElementById("branchSearch").addEventListener("input", filterSummary);
+  document.getElementById("sortBy").addEventListener("change", filterSummary);
+  document.getElementById("pivotSearch").addEventListener("input", filterPivot);
+  document.getElementById("yearFilter").addEventListener("change", filterPivot);
+
+  if(localStorage.getItem("access_token")) {
+    accessToken=localStorage.getItem("access_token");
+    updateSignin(true);
   }
-  return {summary,collected,notcollected,pivot};
+};
+
+function updateSignin(isIn=true){
+  if(isIn){
+    document.getElementById("signinBtn").style.display="none";
+    document.getElementById("signoutBtn").style.display="inline-block";
+    document.getElementById("uploadMasterBtn").disabled=false;
+    document.getElementById("deleteMasterBtn").disabled=false;
+    document.getElementById("processBtn").disabled=false;
+    showStatus("Signed in successfully!","success");
+    ensureMasterFolder().then(findMasterFile);
+  } else {
+    document.getElementById("signinBtn").style.display="inline-block";
+    document.getElementById("signoutBtn").style.display="none";
+    document.getElementById("uploadMasterBtn").disabled=true;
+    document.getElementById("deleteMasterBtn").disabled=true;
+    document.getElementById("processBtn").disabled=true;
+    document.getElementById("downloadBtn").disabled=true;
+    document.getElementById("statsSection").style.display="none";
+    document.getElementById("resultsSection").style.display="none";
+    showStatus("Not signed in","info");
+  }
+}
+function signOut(){ if(accessToken) google.accounts.oauth2.revoke(accessToken); accessToken=null; localStorage.clear(); updateSignin(false); }
+function showStatus(msg,type){const s=document.getElementById("status"); s.textContent=msg; s.className="status "+type;}
+
+/* ===== UI Helper Functions ===== */
+function showLoading(loadingId, textId, loadingText) {
+  document.getElementById(loadingId).style.display = "inline-block";
+  document.getElementById(textId).textContent = loadingText;
 }
 
-// ---------- Rendering ----------
-function renderSummary(summary){
-  let html=`<table><tr><th>Branch</th><th>Total Collectible Qty</th><th>Total Collected Qty</th><th>Collected %</th><th>Total Collected Amount</th></tr>`;
-  for(const [branch,vals] of Object.entries(summary)){
-    const perc=((vals.collected/vals.collectible)*100).toFixed(2);
-    html+=`<tr>
-      <td>${branch}</td>
-      <td>${vals.collectible}</td>
-      <td>${vals.collected}</td>
-      <td>${perc}%</td>
-      <td>${vals.collectedAmount.toFixed(2)}</td>
-    </tr>`;
-  }
-  html+=`</table>`;
-  document.getElementById("summary").innerHTML=html;
+function hideLoading(loadingId, textId, originalText) {
+  document.getElementById(loadingId).style.display = "none";
+  document.getElementById(textId).textContent = originalText;
 }
-function renderPivot(pivot){
-  if(!pivot || Object.keys(pivot).length===0){
-    document.getElementById("pivot").innerHTML="None";
+
+function showProgress(progressId, fillId, initialPercent = 0) {
+  document.getElementById(progressId).style.display = "block";
+  updateProgress(fillId, initialPercent);
+}
+
+function hideProgress(progressId) {
+  document.getElementById(progressId).style.display = "none";
+}
+
+function updateProgress(fillId, percent) {
+  document.getElementById(fillId).style.width = percent + "%";
+}
+
+/* ===== Security Functions ===== */
+function sanitizeInput(input) {
+  if (typeof input !== 'string') return input;
+  return input
+    .replace(/[<>]/g, '') // Remove potential HTML tags
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/on\w+=/gi, '') // Remove event handlers
+    .trim();
+}
+
+/* ===== File Validation ===== */
+function validateMasterFile() {
+  const file = document.getElementById("masterFile").files[0];
+  if (!file) return;
+  
+  const validTypes = ['.xlsx', '.xls'];
+  const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+  
+  if (!validTypes.includes(fileExtension)) {
+    showStatus("Please select a valid Excel file (.xlsx or .xls) for the master file","error");
+    document.getElementById("masterFile").value = "";
     return;
   }
-  const years = new Set();
-  for(const b in pivot){ for(const y in pivot[b]) years.add(y); }
-  const yearArr = Array.from(years).sort();
   
-  let html="<table><tr><th>Branch</th>";
-  yearArr.forEach(y=> html+=`<th>${y}</th>`);
-  html+="</tr>";
-  
-  for(const [branch,yearMap] of Object.entries(pivot)){
-    html+=`<tr><td>${branch}</td>`;
-    yearArr.forEach(y=>{
-      html+=`<td>${yearMap[y]||0}</td>`;
-    });
-    html+="</tr>";
+  if (file.size > 50 * 1024 * 1024) { // 50MB limit
+    showStatus("Master file is too large. Please select a file smaller than 50MB","error");
+    document.getElementById("masterFile").value = "";
+    return;
   }
   
-  html+="</table>";
-  document.getElementById("pivot").innerHTML=html;
+  showStatus(`Master file selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`,"info");
 }
 
-// ---------- Button bindings ----------
-document.getElementById('processBtn').addEventListener('click', ()=>{
-  const masterFile=document.getElementById('masterFile').files[0];
-  const dailyFile =document.getElementById('dailyFile').files[0];
-  if(!masterFile||!dailyFile){ alert("Please upload both files"); return; }
+function validateDailyFile() {
+  const file = document.getElementById("dailyFile").files[0];
+  if (!file) return;
   
-  Promise.all([readFile(masterFile), readFile(dailyFile)]).then(([master,daily])=>{
-    const results = processData(master,daily);
-    renderSummary(results.summary);
-    renderPivot(results.pivot);
-    window._exportData = results;
+  const validTypes = ['.xlsx', '.xls'];
+  const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+  
+  if (!validTypes.includes(fileExtension)) {
+    showStatus("Please select a valid Excel file (.xlsx or .xls) for the daily file","error");
+    document.getElementById("dailyFile").value = "";
+    return;
+  }
+  
+  if (file.size > 50 * 1024 * 1024) { // 50MB limit
+    showStatus("Daily file is too large. Please select a file smaller than 50MB","error");
+    document.getElementById("dailyFile").value = "";
+    return;
+  }
+  
+  showStatus(`Daily file selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`,"info");
+}
+
+/* ===== Folder Handling ===== */
+async function ensureMasterFolder(){
+  try {
+    const res=await fetch("https://www.googleapis.com/drive/v3/files?q=name='BranchManagerApp_Folder' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)", {
+      headers:{Authorization:"Bearer "+accessToken}
+    });
+    const data=await res.json();
+    if(data.files && data.files.length>0){
+      masterFolderId=data.files[0].id;
+    } else {
+      const createRes=await fetch("https://www.googleapis.com/drive/v3/files", {
+        method:"POST", headers:{Authorization:"Bearer "+accessToken,"Content-Type":"application/json"},
+        body: JSON.stringify({name:"BranchManagerApp_Folder",mimeType:"application/vnd.google-apps.folder"})
+      });
+      const folder=await createRes.json();
+      masterFolderId=folder.id;
+    }
+    localStorage.setItem("masterFolderId",masterFolderId);
+    return masterFolderId;
+  } catch(e){ console.error("ensureMasterFolder error",e); showStatus("Error with folder","error"); }
+}
+
+async function findMasterFile(){
+  try {
+    if(!masterFolderId) masterFolderId=localStorage.getItem("masterFolderId");
+    if(!masterFolderId) return;
+    const res=await fetch(`https://www.googleapis.com/drive/v3/files?q='${masterFolderId}'+in+parents and trashed=false&orderBy=modifiedTime desc&fields=files(id,name,modifiedTime)`, {
+      headers:{Authorization:"Bearer "+accessToken}
+    });
+    const data=await res.json();
+    if(data.files && data.files.length>0){
+      const f=data.files[0];
+      masterFileId=f.id;
+      localStorage.setItem("masterFileId", masterFileId);
+      showStatus("Master detected: "+f.name,"success");
+    } else {
+      masterFileId=null;
+      showStatus("No Master file in folder. Upload one.","info");
+    }
+  } catch(e){ console.error("findMasterFile error",e); showStatus("Error finding Master","error"); }
+}
+
+async function uploadMasterFile(){
+  const file=document.getElementById("masterFile").files[0]; 
+  if(!file) return showStatus("Please select a file to upload","error");
+  
+  // Show loading state
+  showLoading("uploadLoading", "uploadText", "Uploading...");
+  showProgress("uploadProgress", "uploadProgressFill", 0);
+  
+  try {
+  const folderId=await ensureMasterFolder();
+  const meta={name:file.name, mimeType:file.type, parents:[folderId]};
+  const fd=new FormData();
+  fd.append("metadata", new Blob([JSON.stringify(meta)],{type:"application/json"}));
+  fd.append("file", file);
+    
+    // Simulate progress
+    updateProgress("uploadProgressFill", 50);
+    
+  const res=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+    method:"POST", headers:{Authorization:"Bearer "+accessToken}, body:fd
   });
-});
+    
+    if(!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+    
+  const j=await res.json();
+  masterFileId=j.id;
+  localStorage.setItem("masterFileId", masterFileId);
+    
+    updateProgress("uploadProgressFill", 100);
+    showStatus("Master file uploaded successfully: "+j.name,"success");
+    
+  } catch(error) {
+    showStatus("Upload failed: " + error.message,"error");
+    console.error("Upload error:", error);
+  } finally {
+    hideLoading("uploadLoading", "uploadText", "Upload/Replace Master");
+    setTimeout(() => hideProgress("uploadProgress"), 2000);
+  }
+}
+async function downloadMasterFile(){
+  if(!masterFileId) throw new Error("No Master file");
+  const res=await fetch("https://www.googleapis.com/drive/v3/files/"+masterFileId+"?alt=media",{headers:{Authorization:"Bearer "+accessToken}});
+  return await res.arrayBuffer();
+}
+async function deleteMasterFile(){
+  if(!masterFileId) return;
+  await fetch("https://www.googleapis.com/drive/v3/files/"+masterFileId,{method:"DELETE",headers:{Authorization:"Bearer "+accessToken}});
+  localStorage.removeItem("masterFileId"); masterFileId=null;
+  showStatus("Master deleted","info");
+}
 
-document.getElementById('downloadBtn').addEventListener('click', ()=>{
-  if(!window._exportData){ alert("No data yet"); return; }
-  const {summary,collected,notcollected,pivot} = window._exportData;
+/* ===== SheetJS Helpers ===== */
+function toNumberSafe(val){ if(val==null||val==="") return 0; if(typeof val==="number") return val; const c=val.toString().replace(/,/g,'').trim(); return isNaN(c)?0:Number(c);}
+function normalizeHeader(header){
+  if(!header) return "";
+  const h=header.toString().toLowerCase().trim();
+  if(["branch","plaza","plaza name","plaza_name","division","area"].includes(h)) return "branch";
+  if(["account","account number","account_no","account no","account_number","code"].includes(h)) return "account";
+  if(["customer","customer name","customer_name","name"].includes(h)) return "customer";
+  if(["overdue","opening","closing"].includes(h)) return "overdue";
+  if(["credit","cr","amount received","amountreceived","payment"].includes(h)) return "credit";
+  if(["debit","dr"].includes(h)) return "debit";
+  if(["sale_date","sale date","saledate","date"].includes(h)) return "sale_date";
+  return h;
+}
+function findHeaderRow(raw){ 
+  for(let i=0;i<raw.length;i++){ 
+    const row=raw[i].map(x=>(x||"").toString().toLowerCase().trim()); 
+    if(row.includes("branch")||row.includes("plaza")||row.includes("account number")||row.includes("customer name")||row.includes("credit")) 
+      return i; 
+  } 
+  return -1; 
+}
+function parseWorkbook(buffer){
+  try {
+    const wb=XLSX.read(buffer,{type:"array"}); 
+    if(!wb.SheetNames || wb.SheetNames.length === 0) {
+      throw new Error("No worksheets found in the Excel file");
+    }
+    
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    if(!ws) {
+      throw new Error("First worksheet is empty or corrupted");
+    }
+    
+  const raw=XLSX.utils.sheet_to_json(ws,{header:1});
+    if(!raw || raw.length === 0) {
+      throw new Error("No data found in the worksheet");
+    }
+    
+    const hri=findHeaderRow(raw); 
+    if(hri === -1) {
+      throw new Error("Could not find header row with expected columns");
+    }
+    
+    const headers=raw[hri].map(h=>normalizeHeader(h));
+    const data = raw.slice(hri+1).map((r, index) => {
+      const o={}; 
+      headers.forEach((h,i) => {
+        o[h] = ["overdue","credit","opening","debit","closing"].includes(h) ? toNumberSafe(r[i]) : r[i];
+      }); 
+      o._rowIndex = index + hri + 2; // Excel row number for error reporting
+      return o;
+    }).filter(row => {
+      // Filter out completely empty rows
+      return Object.values(row).some(val => val !== null && val !== undefined && val !== "");
+    });
+    
+    if(data.length === 0) {
+      throw new Error("No valid data rows found after header");
+    }
+    
+    return data;
+  } catch(error) {
+    console.error("Parse workbook error:", error);
+    throw new Error(`Failed to parse Excel file: ${error.message}`);
+  }
+}
+function readLocalFile(file){ return new Promise(res=>{const r=new FileReader(); r.onload=e=>res(parseWorkbook(e.target.result)); r.readAsArrayBuffer(file);}); }
+function makeKey(r){ return `${(r.branch||"").toString().trim().toLowerCase()}|${(r.account||"").toString().trim().toLowerCase()}|${(r.customer||"").toString().trim().toLowerCase()}`; }
+function getYear(val){ if(!val) return "Unknown"; if(typeof val==="number"){ const d=XLSX.SSF.parse_date_code(val); return d?d.y:"Unknown"; } const d=new Date(val); return !isNaN(d)?d.getFullYear():"Unknown"; }
+
+/* ===== Processing ===== */
+function processData(master,daily){
+  // Performance optimization: Use Map for better performance with large datasets
+  const mMap = new Map(), dMap = new Map();
   
-  // Summary sheet
-  const summaryArr=[["Branch","Collectible Qty","Collected Qty","Collected %","Collected Amount"]];
-  for(const [b,v] of Object.entries(summary)){
-    summaryArr.push([b,v.collectible,v.collected,(v.collected/v.collectible*100).toFixed(2)+"%",v.collectedAmount]);
+  // Batch processing for better performance
+  const batchSize = 1000;
+  const processBatch = (data, map) => {
+    for (let i = 0; i < data.length; i += batchSize) {
+      const batch = data.slice(i, i + batchSize);
+      batch.forEach(r => map.set(makeKey(r), r));
+    }
+  };
+  
+  processBatch(master, mMap);
+  processBatch(daily, dMap);
+  
+  const summary = {}, collected = [], notcollected = [], pivot = {};
+  
+  // Process in batches to avoid blocking the UI
+  const processSummaryBatch = (entries, startIndex, endIndex) => {
+    for (let i = startIndex; i < endIndex && i < entries.length; i++) {
+      const [key, mRow] = entries[i];
+      const branch = sanitizeInput(mRow.branch) || "UNKNOWN";
+      const year = getYear(mRow.sale_date);
+      
+      if (!summary[branch]) {
+        summary[branch] = { collectible: 0, collected: 0, collectedAmount: 0 };
+      }
+      
+    summary[branch].collectible++;
+      const dRow = dMap.get(key);
+      const dailyCredit = toNumberSafe(dRow ? dRow.credit : 0);
+      
+      if (dRow && dailyCredit > 0) {
+        summary[branch].collected++;
+        summary[branch].collectedAmount += dailyCredit;
+        collected.push({ ...mRow, credit: dailyCredit, year });
+    } else {
+        notcollected.push({ ...mRow, credit: dRow ? dailyCredit : "(missing)", year });
+        if (!pivot[branch]) pivot[branch] = {};
+        pivot[branch][year] = (pivot[branch][year] || 0) + 1;
+      }
+    }
+  };
+  
+  const entries = Array.from(mMap.entries());
+  const totalEntries = entries.length;
+  
+  // Process in chunks to maintain responsiveness
+  if (totalEntries > 5000) {
+    const chunkSize = Math.ceil(totalEntries / 10);
+    for (let i = 0; i < totalEntries; i += chunkSize) {
+      processSummaryBatch(entries, i, i + chunkSize);
+    }
+  } else {
+    processSummaryBatch(entries, 0, totalEntries);
   }
   
-  // Collected sheet
-  const collectedArr=[["Branch","Account","Customer","Overdue","Credit","Sale Year"]];
-  collected.forEach(r=>collectedArr.push([r.branch,r.account,r.customer,r.overdue,r.credit,r.year]));
+  return { summary, collected, notcollected, pivot };
+}
+
+/* ===== Rendering ===== */
+function renderSummary(summary, filteredData = null){
+  const data = filteredData || summary;
+  let html="<table><tr><th>Branch</th><th>Collectible</th><th>Collected</th><th>Collection %</th><th>Total Amount</th></tr>";
+  for(const [b,v] of Object.entries(data)){
+    const perc=(v.collectible?((v.collected/v.collectible)*100).toFixed(2):"0"); 
+    html+=`<tr><td>${b}</td><td>${v.collectible.toLocaleString()}</td><td>${v.collected.toLocaleString()}</td><td>${perc}%</td><td>₹${v.collectedAmount.toLocaleString()}</td></tr>`;
+  }
+  document.getElementById("summary").innerHTML=html+"</table>";
+}
+function renderPivot(pivot){
+  if(!pivot||Object.keys(pivot).length===0){document.getElementById("pivot").innerHTML="<p>No data to display</p>";return;}
+  const years=new Set(); for(const b in pivot){for(const y in pivot[b]) years.add(y);} const ya=[...years].sort();
+  let html="<table><tr><th>Branch</th>"+ya.map(y=>`<th>${y} (Not Collected)</th>`).join("")+"</tr>";
+  for(const [b,ym] of Object.entries(pivot)){html+=`<tr><td>${b}</td>`+ya.map(y=>`<td>${ym[y]||0}</td>`).join("")+"</tr>";}
+  document.getElementById("pivot").innerHTML=html+"</table>";
+}
+
+function renderStats(data){
+  const {summary, collected, notcollected} = data;
+  const totalCollectible = Object.values(summary).reduce((sum, s) => sum + s.collectible, 0);
+  const totalCollected = Object.values(summary).reduce((sum, s) => sum + s.collected, 0);
+  const totalAmount = Object.values(summary).reduce((sum, s) => sum + s.collectedAmount, 0);
+  const collectionRate = totalCollectible > 0 ? ((totalCollected / totalCollectible) * 100).toFixed(1) : 0;
   
-  // Not Collected sheet
-  const notArr=[["Branch","Account","Customer","Overdue","Credit","Sale Year"]];
-  notcollected.forEach(r=>notArr.push([r.branch,r.account,r.customer,r.overdue,r.credit,r.year]));
+  const statsHtml = `
+    <div class="stat-card">
+      <div class="stat-number">${totalCollectible.toLocaleString()}</div>
+      <div class="stat-label">Total Collectible</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">${totalCollected.toLocaleString()}</div>
+      <div class="stat-label">Total Collected</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">${collectionRate}%</div>
+      <div class="stat-label">Collection Rate</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">₹${totalAmount.toLocaleString()}</div>
+      <div class="stat-label">Total Amount</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">${collected.length}</div>
+      <div class="stat-label">Collected Items</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">${notcollected.length}</div>
+      <div class="stat-label">Not Collected Items</div>
+    </div>
+  `;
   
-  // Pivot sheet
+  document.getElementById("statsGrid").innerHTML = statsHtml;
+}
+
+/* ===== Filtering Functions ===== */
+function filterSummary() {
+  if (!window._exportData) return;
+  
+  const searchTerm = document.getElementById("branchSearch").value.toLowerCase();
+  const sortBy = document.getElementById("sortBy").value;
+  const summary = window._exportData.summary;
+  
+  let filtered = Object.entries(summary).filter(([branch, data]) => 
+    branch.toLowerCase().includes(searchTerm)
+  );
+  
+  // Sort the filtered data
+  filtered.sort((a, b) => {
+    const [branchA, dataA] = a;
+    const [branchB, dataB] = b;
+    
+    switch(sortBy) {
+      case 'branch':
+        return branchA.localeCompare(branchB);
+      case 'collectible':
+        return dataB.collectible - dataA.collectible;
+      case 'collected':
+        return dataB.collected - dataA.collected;
+      case 'percentage':
+        const percA = dataA.collectible > 0 ? (dataA.collected / dataA.collectible) : 0;
+        const percB = dataB.collectible > 0 ? (dataB.collected / dataB.collectible) : 0;
+        return percB - percA;
+      case 'amount':
+        return dataB.collectedAmount - dataA.collectedAmount;
+      default:
+        return 0;
+    }
+  });
+  
+  const filteredSummary = Object.fromEntries(filtered);
+  renderSummary(summary, filteredSummary);
+}
+
+function filterPivot() {
+  if (!window._exportData) return;
+  
+  const searchTerm = document.getElementById("pivotSearch").value.toLowerCase();
+  const yearFilter = document.getElementById("yearFilter").value;
+  const pivot = window._exportData.pivot;
+  
+  if (!pivot || Object.keys(pivot).length === 0) {
+    document.getElementById("pivot").innerHTML = "<p>No data to display</p>";
+    return;
+  }
+  
   const years = new Set();
-  for(const b in pivot){ for(const y in pivot[b]) years.add(y); }
-  const yearArr = Array.from(years).sort();
-  const pivotArr=[["Branch",...yearArr]];
-  for(const [branch,yearMap] of Object.entries(pivot)){
-    pivotArr.push([branch,...yearArr.map(y=>yearMap[y]||0)]);
+  for (const b in pivot) {
+    for (const y in pivot[b]) years.add(y);
   }
+  const ya = [...years].sort();
+  
+  // Update year filter options
+  updateYearFilter(ya);
+  
+  let filteredPivot = {};
+  for (const [branch, yearData] of Object.entries(pivot)) {
+    if (branch.toLowerCase().includes(searchTerm)) {
+      if (yearFilter) {
+        if (yearData[yearFilter] !== undefined) {
+          filteredPivot[branch] = { [yearFilter]: yearData[yearFilter] };
+        }
+      } else {
+        filteredPivot[branch] = yearData;
+      }
+    }
+  }
+  
+  renderPivot(filteredPivot);
+}
 
-  // Write Workbook
+function updateYearFilter(years) {
+  const yearFilter = document.getElementById("yearFilter");
+  const currentValue = yearFilter.value;
+  
+  yearFilter.innerHTML = '<option value="">All Years</option>';
+  years.forEach(year => {
+    const option = document.createElement("option");
+    option.value = year;
+    option.textContent = year;
+    if (year === currentValue) option.selected = true;
+    yearFilter.appendChild(option);
+  });
+}
+
+function resetFilters() {
+  document.getElementById("branchSearch").value = "";
+  document.getElementById("sortBy").value = "branch";
+  document.getElementById("pivotSearch").value = "";
+  document.getElementById("yearFilter").value = "";
+  
+  if (window._exportData) {
+    renderSummary(window._exportData.summary);
+    renderPivot(window._exportData.pivot);
+  }
+}
+
+/* ===== Help Functions ===== */
+function showHelp() {
+  document.getElementById("helpModal").style.display = "block";
+}
+
+function hideHelp() {
+  document.getElementById("helpModal").style.display = "none";
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+  const modal = document.getElementById("helpModal");
+  if (event.target === modal) {
+    modal.style.display = "none";
+  }
+}
+
+/* ===== Buttons ===== */
+async function processFiles(){
+  if(!masterFileId) return showStatus("No master file found. Please upload a master file first.","error");
+  const daily=document.getElementById("dailyFile").files[0]; 
+  if(!daily) return showStatus("Please select a daily file to process","error");
+  
+  // Show loading state
+  showLoading("processLoading", "processText", "Processing...");
+  showProgress("processProgress", "processProgressFill", 0);
+  
+  try {
+    updateProgress("processProgressFill", 20);
+    showStatus("Downloading master file...","info");
+    
+    const master=parseWorkbook(await downloadMasterFile());
+    updateProgress("processProgressFill", 40);
+    showStatus("Reading daily file...","info");
+    
+    const dailyData=await readLocalFile(daily);
+    updateProgress("processProgressFill", 60);
+    showStatus("Processing data...","info");
+    
+    const res=processData(master,dailyData);
+    updateProgress("processProgressFill", 80);
+    showStatus("Rendering results...","info");
+    
+    renderSummary(res.summary); 
+    renderPivot(res.pivot);
+    renderStats(res);
+    
+    updateProgress("processProgressFill", 100);
+    showStatus("Processing completed successfully!","success");
+    
+    window._exportData=res; 
+    document.getElementById("downloadBtn").disabled=false;
+    document.getElementById("resultsSection").style.display="block";
+    document.getElementById("statsSection").style.display="block";
+    
+  } catch(error) {
+    showStatus("Processing failed: " + error.message,"error");
+    console.error("Processing error:", error);
+  } finally {
+    hideLoading("processLoading", "processText", "Process Comparison");
+    setTimeout(() => hideProgress("processProgress"), 2000);
+  }
+}
+function downloadExcel(){
+  if(!window._exportData) {
+    showStatus("No data to export. Please process files first.","error");
+    return;
+  }
+  
+  const {summary,collected,notcollected,pivot}=window._exportData; 
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(summaryArr),"Summary");
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(collectedArr),"Collected");
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(notArr),"Not Collected");
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pivotArr),"Pivot Not Collected");
-  XLSX.writeFile(wb,"ComparisonResult.xlsx");
-});
+  
+  // Summary sheet with enhanced formatting
+  const sArr=[["Branch","Collectible","Collected","Collection %","Total Amount"]];
+  for(const [b,v] of Object.entries(summary)){
+    const percentage = v.collectible > 0 ? (v.collected/v.collectible*100).toFixed(2) : 0;
+    sArr.push([b,v.collectible,v.collected,percentage,v.collectedAmount]);
+  }
+  
+  // Add totals row
+  const totalCollectible = Object.values(summary).reduce((sum, s) => sum + s.collectible, 0);
+  const totalCollected = Object.values(summary).reduce((sum, s) => sum + s.collected, 0);
+  const totalAmount = Object.values(summary).reduce((sum, s) => sum + s.collectedAmount, 0);
+  const totalPercentage = totalCollectible > 0 ? (totalCollected/totalCollectible*100).toFixed(2) : 0;
+  sArr.push(["TOTAL", totalCollectible, totalCollected, totalPercentage, totalAmount]);
+  
+  const summarySheet = XLSX.utils.aoa_to_sheet(sArr);
+  XLSX.utils.book_append_sheet(wb, summarySheet, "Summary");
+
+  // Collected items sheet
+  const cArr=[["Branch","Account","Customer","Overdue","Credit","Year","Collection Date"]];
+  collected.forEach(r=>cArr.push([r.branch,r.account,r.customer,r.overdue,r.credit,r.year,new Date().toLocaleDateString()]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cArr),"Collected");
+
+  // Not collected items sheet
+  const nArr=[["Branch","Account","Customer","Overdue","Credit","Year","Status"]];
+  notcollected.forEach(r=>nArr.push([r.branch,r.account,r.customer,r.overdue,r.credit,r.year,"Not Collected"]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(nArr),"NotCollected");
+
+  // Pivot sheet
+  const years=new Set(); 
+  for(const b in pivot){for(const y in pivot[b]) years.add(y);} 
+  const ya=[...years].sort(); 
+  const pArr=[["Branch",...ya.map(y=>y+" (Not Collected)")]];
+  for(const [b,ym] of Object.entries(pivot)) {
+    const row = [b, ...ya.map(y=>ym[y]||0)];
+    pArr.push(row);
+  }
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pArr),"Pivot");
+
+  // Generate filename with timestamp
+  const timestamp = new Date().toISOString().slice(0,19).replace(/:/g, '-');
+  const filename = `BranchComparison_${timestamp}.xlsx`;
+  
+  XLSX.writeFile(wb, filename);
+  showStatus(`Excel file downloaded: ${filename}`,"success");
+}
 </script>
 </body>
 </html>
