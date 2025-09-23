@@ -6,6 +6,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script src="https://apis.google.com/js/api.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body { 
@@ -256,7 +257,8 @@
 </head>
 <body>
 <div class="container">
-  <h1>📊 Branch Overdue Comparison</h1>
+  <h1>📊 Collection Comparison (Total,Yearly,Monthly)
+  </h1>
   <div style="text-align: center; margin-bottom: 20px;">
     <button onclick="showHelp()" class="btn-info" style="margin: 0;">📖 Help & Instructions</button>
   </div>
@@ -313,6 +315,10 @@
         <button id="downloadBtn" class="btn-info" disabled>Download Results Excel</button>
       </div>
     </div>
+    <div style="margin:10px 0;">
+      <label><input type="checkbox" id="useLocalMaster"> Use local master instead of Drive</label>
+      <input type="file" id="localMasterFile" accept=".xlsx,.xls" style="margin-left:10px; display:none;" />
+    </div>
     <div class="progress-bar" id="processProgress" style="display:none;">
       <div class="progress-fill" id="processProgressFill"></div>
     </div>
@@ -351,6 +357,24 @@
     </div>
     <div class="responsive-table">
   <div id="pivot"></div>
+    </div>
+
+    <div class="section">
+      <h2>📅 2024 - Branch & Month Wise Not Collected Qty</h2>
+      <div style="margin-bottom:10px;">
+        <button id="download2024MonthlyBtn" disabled>Download 2024 Monthly Not Collected (List)</button>
+        <button id="shot2024" class="btn-secondary" disabled>Capture Screenshot (2024)</button>
+      </div>
+      <div id="pivot2024Monthly"></div>
+    </div>
+
+    <div class="section">
+      <h2>📅 2025 - Branch & Month Wise Not Collected Qty</h2>
+      <div style="margin-bottom:10px;">
+        <button id="download2025MonthlyBtn" disabled>Download 2025 Monthly Not Collected (List)</button>
+        <button id="shot2025" class="btn-secondary" disabled>Capture Screenshot (2025)</button>
+      </div>
+      <div id="pivot2025Monthly"></div>
     </div>
   </div>
 </div>
@@ -430,7 +454,7 @@ window.onload = () => {
     client_id: CLIENT_ID,
     scope: SCOPES,
     callback: (resp) => {
-      hideLoading("signinLoading", "signinText", "Sign in with Google");
+      hideLoading("signinLoading", "signinText", "Signing in...");
       if(resp.error){ showStatus("Authentication failed: " + resp.error,"error"); return; }
       accessToken = resp.access_token;
       localStorage.setItem("access_token",accessToken);
@@ -447,6 +471,13 @@ window.onload = () => {
   document.getElementById("deleteMasterBtn").onclick=deleteMasterFile;
   document.getElementById("processBtn").onclick=processFiles;
   document.getElementById("downloadBtn").onclick=downloadExcel;
+  
+  // Toggle local master input
+  const useLocal = document.getElementById("useLocalMaster");
+  const localMaster = document.getElementById("localMasterFile");
+  useLocal.addEventListener("change", () => {
+    localMaster.style.display = useLocal.checked ? "inline-block" : "none";
+  });
   
   // Add file validation
   document.getElementById("masterFile").addEventListener("change", validateMasterFile);
@@ -730,77 +761,111 @@ function parseWorkbook(buffer){
 function readLocalFile(file){ return new Promise(res=>{const r=new FileReader(); r.onload=e=>res(parseWorkbook(e.target.result)); r.readAsArrayBuffer(file);}); }
 function makeKey(r){ return `${(r.branch||"").toString().trim().toLowerCase()}|${(r.account||"").toString().trim().toLowerCase()}|${(r.customer||"").toString().trim().toLowerCase()}`; }
 function getYear(val){ if(!val) return "Unknown"; if(typeof val==="number"){ const d=XLSX.SSF.parse_date_code(val); return d?d.y:"Unknown"; } const d=new Date(val); return !isNaN(d)?d.getFullYear():"Unknown"; }
+function getMonth(val){
+  if(!val) return "Unknown";
+  if(typeof val === "number"){
+    const d = XLSX.SSF.parse_date_code(val);
+    if(d && typeof d.m === "number") return d.m; // 1-12
+    const dd = new Date((val - 25569) * 86400 * 1000);
+    return isNaN(dd) ? "Unknown" : (dd.getMonth()+1);
+  }
+  const d = new Date(val);
+  return isNaN(d) ? "Unknown" : (d.getMonth()+1); // 1-12
+}
 
 /* ===== Processing ===== */
-function processData(master,daily){
-  // Performance optimization: Use Map for better performance with large datasets
-  const mMap = new Map(), dMap = new Map();
+function processData(master, daily){
+  console.log("Processing data...");
+  console.log("Master records:", master.length);
+  console.log("Daily records:", daily.length);
   
-  // Batch processing for better performance
-  const batchSize = 1000;
-  const processBatch = (data, map) => {
-    for (let i = 0; i < data.length; i += batchSize) {
-      const batch = data.slice(i, i + batchSize);
-      batch.forEach(r => map.set(makeKey(r), r));
-    }
-  };
-  
-  processBatch(master, mMap);
-  processBatch(daily, dMap);
+  const mMap = {}, dMap = {}; 
+  master.forEach(r => mMap[makeKey(r)] = r); 
+  daily.forEach(r => dMap[makeKey(r)] = r);
   
   const summary = {}, collected = [], notcollected = [], pivot = {};
+  // New structures for monthly pivots and year-wise lists
+  const monthlyPivot = { 2024: {}, 2025: {} }; // {year: {branch: {1..12: count}}}
+  const yearNotCollectedList = { 2024: [], 2025: [] }; // detailed rows
   
-  // Process in batches to avoid blocking the UI
-  const processSummaryBatch = (entries, startIndex, endIndex) => {
-    for (let i = startIndex; i < endIndex && i < entries.length; i++) {
-      const [key, mRow] = entries[i];
-      const branch = sanitizeInput(mRow.branch) || "UNKNOWN";
-      const year = getYear(mRow.sale_date);
-      
-      if (!summary[branch]) {
-        summary[branch] = { collectible: 0, collected: 0, collectedAmount: 0 };
-      }
-      
+  for(const [key, mRow] of Object.entries(mMap)){
+    const branch = mRow.branch || "UNKNOWN";
+    const year = getYear(mRow.sale_date);
+    const month = getMonth(mRow.sale_date);
+    
+    // Initialize branch summary
+    if(!summary[branch]) {
+      summary[branch] = {collectible: 0, collected: 0, collectedAmount: 0};
+    }
+    
+    // All master records are collectible
     summary[branch].collectible++;
-      const dRow = dMap.get(key);
-      const dailyCredit = toNumberSafe(dRow ? dRow.credit : 0);
+
+    const dRow = dMap[key];
+    const dailyCredit = toNumberSafe(dRow ? dRow.credit : 0);
+    
+    // Collection logic: account is considered Collected if Daily file's Credit > 0
+    if(dRow && dailyCredit > 0) { 
+      summary[branch].collected++; 
+      summary[branch].collectedAmount += dailyCredit; 
+      collected.push({
+        ...mRow, 
+        credit: dailyCredit, 
+        year: year,
+        month: month,
+        dailyOverdue: toNumberSafe(dRow.overdue || 0)
+      });
+    } else { 
+      const notRow = {
+        ...mRow, 
+        credit: dRow ? dailyCredit : "(missing)", 
+        year: year,
+        month: month,
+        dailyOverdue: dRow ? toNumberSafe(dRow.overdue || 0) : "(missing)"
+      };
+      notcollected.push(notRow); 
       
-      if (dRow && dailyCredit > 0) {
-        summary[branch].collected++;
-        summary[branch].collectedAmount += dailyCredit;
-        collected.push({ ...mRow, credit: dailyCredit, year });
-    } else {
-        notcollected.push({ ...mRow, credit: dRow ? dailyCredit : "(missing)", year });
-        if (!pivot[branch]) pivot[branch] = {};
-        pivot[branch][year] = (pivot[branch][year] || 0) + 1;
+      // Build pivot table: Branch-Year for Not Collected qty
+      if(!pivot[branch]) pivot[branch] = {};
+      pivot[branch][year] = (pivot[branch][year] || 0) + 1; 
+      
+      // Build monthly pivot for 2024 and 2025 only
+      if(year === 2024 || year === 2025){
+        const yearKey = year;
+        if(!monthlyPivot[yearKey][branch]) monthlyPivot[yearKey][branch] = {};
+        if(typeof month === "number"){
+          monthlyPivot[yearKey][branch][month] = (monthlyPivot[yearKey][branch][month] || 0) + 1;
+        } else {
+          // treat unknown month as 0 key
+          monthlyPivot[yearKey][branch][0] = (monthlyPivot[yearKey][branch][0] || 0) + 1;
+        }
+        yearNotCollectedList[yearKey].push(notRow);
       }
     }
-  };
-  
-  const entries = Array.from(mMap.entries());
-  const totalEntries = entries.length;
-  
-  // Process in chunks to maintain responsiveness
-  if (totalEntries > 5000) {
-    const chunkSize = Math.ceil(totalEntries / 10);
-    for (let i = 0; i < totalEntries; i += chunkSize) {
-      processSummaryBatch(entries, i, i + chunkSize);
-    }
-  } else {
-    processSummaryBatch(entries, 0, totalEntries);
   }
   
-  return { summary, collected, notcollected, pivot };
+  console.log("Processing complete:");
+  console.log("Summary:", summary);
+  console.log("Collected:", collected.length);
+  console.log("Not collected:", notcollected.length);
+  
+  return {summary, collected, notcollected, pivot, monthlyPivot, yearNotCollectedList};
 }
 
 /* ===== Rendering ===== */
 function renderSummary(summary, filteredData = null){
   const data = filteredData || summary;
   let html="<table><tr><th>Branch</th><th>Collectible</th><th>Collected</th><th>Collection %</th><th>Total Amount</th></tr>";
+  let tCollectible=0, tCollected=0, tAmount=0;
   for(const [b,v] of Object.entries(data)){
     const perc=(v.collectible?((v.collected/v.collectible)*100).toFixed(2):"0"); 
     html+=`<tr><td>${b}</td><td>${v.collectible.toLocaleString()}</td><td>${v.collected.toLocaleString()}</td><td>${perc}%</td><td>₹${v.collectedAmount.toLocaleString()}</td></tr>`;
+    tCollectible += v.collectible;
+    tCollected += v.collected;
+    tAmount += v.collectedAmount;
   }
+  const tPerc = tCollectible ? ((tCollected/tCollectible)*100).toFixed(2) : "0";
+  html+=`<tr style=\"background:#f0f0f0;font-weight:bold;\"><td>TOTAL</td><td>${tCollectible.toLocaleString()}</td><td>${tCollected.toLocaleString()}</td><td>${tPerc}%</td><td>₹${tAmount.toLocaleString()}</td></tr>`;
   document.getElementById("summary").innerHTML=html+"</table>";
 }
 function renderPivot(pivot){
@@ -809,6 +874,44 @@ function renderPivot(pivot){
   let html="<table><tr><th>Branch</th>"+ya.map(y=>`<th>${y} (Not Collected)</th>`).join("")+"</tr>";
   for(const [b,ym] of Object.entries(pivot)){html+=`<tr><td>${b}</td>`+ya.map(y=>`<td>${ym[y]||0}</td>`).join("")+"</tr>";}
   document.getElementById("pivot").innerHTML=html+"</table>";
+}
+
+function renderMonthlyPivot(year, monthlyMap, containerId){
+  const container = document.getElementById(containerId);
+  if(!monthlyMap || Object.keys(monthlyMap).length === 0){
+    container.innerHTML = "<p style='color:#666;font-style:italic;'>No not collected items found for "+year+".</p>";
+    return;
+  }
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; // 1..12
+  let html = `<table>
+    <tr>
+      <th>Branch</th>
+      ${months.map(m=>`<th>${m}</th>`).join("")}
+      <th><strong>Total</strong></th>
+    </tr>`;
+  const branches = Object.keys(monthlyMap).sort();
+  const monthTotals = new Array(12).fill(0);
+  let grandTotal = 0;
+  for(const branch of branches){
+    const counts = monthlyMap[branch] || {};
+    let rowTotal = 0;
+    html += `<tr><td><strong>${branch}</strong></td>`;
+    for(let m=1;m<=12;m++){
+      const val = counts[m] || 0;
+      rowTotal += val;
+      monthTotals[m-1] += val;
+      html += `<td style="text-align:center;">${val}</td>`;
+    }
+    grandTotal += rowTotal;
+    html += `<td style="text-align:center;font-weight:bold;background:#f0f0f0;">${rowTotal}</td></tr>`;
+  }
+  html += `<tr style="background:#e0e0e0;font-weight:bold;">
+    <td>TOTAL</td>
+    ${monthTotals.map(v=>`<td style="text-align:center;">${v}</td>`).join("")}
+    <td style="text-align:center;background:#d0d0d0;">${grandTotal}</td>
+  </tr>`;
+  html += `</table>`;
+  container.innerHTML = html;
 }
 
 function renderStats(data){
@@ -969,7 +1072,8 @@ window.onclick = function(event) {
 
 /* ===== Buttons ===== */
 async function processFiles(){
-  if(!masterFileId) return showStatus("No master file found. Please upload a master file first.","error");
+  // Allow using local master to bypass Drive
+  const useLocal = document.getElementById("useLocalMaster").checked;
   const daily=document.getElementById("dailyFile").files[0]; 
   if(!daily) return showStatus("Please select a daily file to process","error");
   
@@ -978,34 +1082,54 @@ async function processFiles(){
   showProgress("processProgress", "processProgressFill", 0);
   
   try {
-    updateProgress("processProgressFill", 20);
-    showStatus("Downloading master file...","info");
+    updateProgress("processProgressFill", 15);
+    let master;
+    if(useLocal){
+      const localMasterFile = document.getElementById("localMasterFile").files[0];
+      if(!localMasterFile){
+        throw new Error("Please select a local master file or uncheck 'Use local master'.");
+      }
+      showStatus("Reading local master...","info");
+      const masterBuffer = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = e => res(e.target.result); fr.onerror = rej; fr.readAsArrayBuffer(localMasterFile); });
+      master = parseWorkbook(masterBuffer);
+    } else {
+      if(!masterFileId) throw new Error("No master file found in Drive. Upload one or use local master.");
+      showStatus("Downloading master from Drive...","info");
+      const masterBuffer = await downloadMasterFile();
+      master = parseWorkbook(masterBuffer);
+    }
     
-    const master=parseWorkbook(await downloadMasterFile());
-    updateProgress("processProgressFill", 40);
-    showStatus("Reading daily file...","info");
-    
-    const dailyData=await readLocalFile(daily);
     updateProgress("processProgressFill", 60);
-    showStatus("Processing data...","info");
+    showStatus("Reading daily file...","info");
+    const dailyData = await readLocalFile(daily);
     
-    const res=processData(master,dailyData);
     updateProgress("processProgressFill", 80);
-    showStatus("Rendering results...","info");
+    const res = processData(master, dailyData);
     
-    renderSummary(res.summary); 
+    renderSummary(res.summary);
     renderPivot(res.pivot);
+    renderMonthlyPivot(2024, res.monthlyPivot[2024], "pivot2024Monthly");
+    renderMonthlyPivot(2025, res.monthlyPivot[2025], "pivot2025Monthly");
     renderStats(res);
     
+    // Show results sections
+    document.getElementById("statsSection").style.display = "block";
+    document.getElementById("resultsSection").style.display = "block";
+    
+    window._exportData = res;
+    
+    // Enable download & screenshot buttons
+    document.getElementById("downloadBtn").disabled = false;
+    const has2024 = res.yearNotCollectedList[2024].length > 0;
+    const has2025 = res.yearNotCollectedList[2025].length > 0;
+    document.getElementById("download2024MonthlyBtn").disabled = !has2024;
+    document.getElementById("download2025MonthlyBtn").disabled = !has2025;
+    document.getElementById("shot2024").disabled = !has2024;
+    document.getElementById("shot2025").disabled = !has2025;
+    
     updateProgress("processProgressFill", 100);
-    showStatus("Processing completed successfully!","success");
-    
-    window._exportData=res; 
-    document.getElementById("downloadBtn").disabled=false;
-    document.getElementById("resultsSection").style.display="block";
-    document.getElementById("statsSection").style.display="block";
-    
-  } catch(error) {
+    showStatus("Processing completed successfully!", "success");
+  } catch (error) {
     showStatus("Processing failed: " + error.message,"error");
     console.error("Processing error:", error);
   } finally {
@@ -1013,6 +1137,38 @@ async function processFiles(){
     setTimeout(() => hideProgress("processProgress"), 2000);
   }
 }
+
+// Screenshot helpers
+function downloadCanvasAsImage(canvas, filename){
+  canvas.toBlob(function(blob){
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  });
+}
+
+document.getElementById("shot2024").addEventListener("click", async ()=>{
+  const tableEl = document.getElementById("pivot2024Monthly");
+  if(!tableEl || tableEl.innerHTML.trim()==="") return showStatus("Nothing to capture for 2024.","error");
+  const sectionEl = tableEl.parentElement; // capture the whole section including the heading with year
+  const canvas = await html2canvas(sectionEl, {backgroundColor: '#ffffff', scale: 2});
+  const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-');
+  downloadCanvasAsImage(canvas, `NotCollected_2024_Monthly_Pivot_${ts}.png`);
+});
+
+document.getElementById("shot2025").addEventListener("click", async ()=>{
+  const tableEl = document.getElementById("pivot2025Monthly");
+  if(!tableEl || tableEl.innerHTML.trim()==="") return showStatus("Nothing to capture for 2025.","error");
+  const sectionEl = tableEl.parentElement; // capture the whole section including the heading with year
+  const canvas = await html2canvas(sectionEl, {backgroundColor: '#ffffff', scale: 2});
+  const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-');
+  downloadCanvasAsImage(canvas, `NotCollected_2025_Monthly_Pivot_${ts}.png`);
+});
+
 function downloadExcel(){
   if(!window._exportData) {
     showStatus("No data to export. Please process files first.","error");
@@ -1060,6 +1216,38 @@ function downloadExcel(){
   }
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pArr),"Pivot");
 
+  // 2024 Monthly Not Collected Pivot
+  if(window._exportData && window._exportData.monthlyPivot && window._exportData.monthlyPivot[2024]){
+    const mp2024 = window._exportData.monthlyPivot[2024];
+    const monthsHdr = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; 
+    const arr2024 = [["Branch", ...monthsHdr, "Total"]];
+    const branches2024 = Object.keys(mp2024).sort();
+    branches2024.forEach(branch => {
+      const counts = mp2024[branch]||{}; 
+      const rowMonths = [];
+      let total = 0;
+      for(let m=1;m<=12;m++){ const v = counts[m]||0; rowMonths.push(v); total += v; }
+      arr2024.push([branch, ...rowMonths, total]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(arr2024), "2024 Monthly Pivot");
+  }
+
+  // 2025 Monthly Not Collected Pivot
+  if(window._exportData && window._exportData.monthlyPivot && window._exportData.monthlyPivot[2025]){
+    const mp2025 = window._exportData.monthlyPivot[2025];
+    const monthsHdr = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; 
+    const arr2025 = [["Branch", ...monthsHdr, "Total"]];
+    const branches2025 = Object.keys(mp2025).sort();
+    branches2025.forEach(branch => {
+      const counts = mp2025[branch]||{}; 
+      const rowMonths = [];
+      let total = 0;
+      for(let m=1;m<=12;m++){ const v = counts[m]||0; rowMonths.push(v); total += v; }
+      arr2025.push([branch, ...rowMonths, total]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(arr2025), "2025 Monthly Pivot");
+  }
+
   // Generate filename with timestamp
   const timestamp = new Date().toISOString().slice(0,19).replace(/:/g, '-');
   const filename = `BranchComparison_${timestamp}.xlsx`;
@@ -1067,6 +1255,70 @@ function downloadExcel(){
   XLSX.writeFile(wb, filename);
   showStatus(`Excel file downloaded: ${filename}`,"success");
 }
+
+document.getElementById("download2024MonthlyBtn").addEventListener("click", ()=>{
+  if(!window._exportData) return showStatus("No data to download.", "error");
+  const list = window._exportData.yearNotCollectedList[2024] || [];
+  if(list.length === 0) return showStatus("No 2024 data to download.", "error");
+  const wb = XLSX.utils.book_new();
+  
+  // Sheet 1: Detailed list
+  const header = ["Branch","Month","Account","Customer","Master Overdue","Daily Credit","Daily Overdue","Sale Year"];
+  const aoa = [header];
+  list.forEach(r=>{
+    const monthName = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][typeof r.month === "number"? r.month : 0] || "Unknown";
+    aoa.push([r.branch, monthName, r.account, r.customer, r.overdue, r.credit, r.dailyOverdue, r.year]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "2024 Not Collected");
+  
+  // Sheet 2: Monthly pivot summary
+  const mp2024 = (window._exportData.monthlyPivot && window._exportData.monthlyPivot[2024]) ? window._exportData.monthlyPivot[2024] : {};
+  const monthsHdr = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; 
+  const pivotAoa = [["Branch", ...monthsHdr, "Total"]];
+  const branches = Object.keys(mp2024).sort();
+  branches.forEach(branch => {
+    const counts = mp2024[branch] || {};
+    let total = 0; const row = [branch];
+    for(let m=1;m<=12;m++){ const v = counts[m]||0; row.push(v); total += v; }
+    row.push(total);
+    pivotAoa.push(row);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pivotAoa), "2024 Monthly Pivot");
+  
+  XLSX.writeFile(wb, "NotCollected_2024_Monthly_List.xlsx");
+});
+
+document.getElementById("download2025MonthlyBtn").addEventListener("click", ()=>{
+  if(!window._exportData) return showStatus("No data to download.", "error");
+  const list = window._exportData.yearNotCollectedList[2025] || [];
+  if(list.length === 0) return showStatus("No 2025 data to download.", "error");
+  const wb = XLSX.utils.book_new();
+  
+  // Sheet 1: Detailed list
+  const header = ["Branch","Month","Account","Customer","Master Overdue","Daily Credit","Daily Overdue","Sale Year"];
+  const aoa = [header];
+  list.forEach(r=>{
+    const monthName = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][typeof r.month === "number"? r.month : 0] || "Unknown";
+    aoa.push([r.branch, monthName, r.account, r.customer, r.overdue, r.credit, r.dailyOverdue, r.year]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "2025 Not Collected");
+  
+  // Sheet 2: Monthly pivot summary
+  const mp2025 = (window._exportData.monthlyPivot && window._exportData.monthlyPivot[2025]) ? window._exportData.monthlyPivot[2025] : {};
+  const monthsHdr = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; 
+  const pivotAoa = [["Branch", ...monthsHdr, "Total"]];
+  const branches = Object.keys(mp2025).sort();
+  branches.forEach(branch => {
+    const counts = mp2025[branch] || {};
+    let total = 0; const row = [branch];
+    for(let m=1;m<=12;m++){ const v = counts[m]||0; row.push(v); total += v; }
+    row.push(total);
+    pivotAoa.push(row);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pivotAoa), "2025 Monthly Pivot");
+  
+  XLSX.writeFile(wb, "NotCollected_2025_Monthly_List.xlsx");
+});
 </script>
 </body>
 </html>
