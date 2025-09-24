@@ -127,6 +127,30 @@
       color: #856404;
       border-left-color: #ffc107;
     }
+    /* Urgent warning card for 180+ days */
+    .warning-card {
+      background: #fff7e6; /* light amber */
+      border-left: 6px solid #ff8c00; /* deep orange */
+      box-shadow: 0 10px 20px rgba(255,140,0,0.15);
+      padding: 20px;
+      border-radius: 12px;
+      margin: 25px 0;
+    }
+    .warning-card h2 {
+      margin-top: 0;
+      color: #9a5b00;
+      border-left: none;
+      padding-left: 0;
+    }
+    .warning-card .note {
+      background: #fff0cc;
+      border-left: 4px solid #ffb84d;
+      color: #7a4a00;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-top: 12px;
+      font-size: 13px;
+    }
     table { 
       border-collapse: collapse; 
       width: 100%; 
@@ -376,6 +400,30 @@
       </div>
       <div id="pivot2025Monthly"></div>
     </div>
+
+  <!-- 180+ Days Overdue Warning Section -->
+  <div class="warning-card" id="overdue180Section" style="display:none;">
+    <h2>⏳ Accounts Beyond 180 Days (Uncollected with Balance)</h2>
+    <p style="margin: 8px 0 12px; color:#5c3a00;">Branch-wise summary of accounts ≥ 180 days from Sale_Date with non-zero Closing (daily file). Detailed list is available via download.</p>
+    <div class="responsive-table" id="overdue180Summary"></div>
+    <p style="margin: 12px 0 6px; color:#5c3a00;"><strong>Branch-Year Summary</strong></p>
+    <div class="responsive-table" id="overdue180ByYear"></div>
+    <div class="note">Accounts with zero balance (Closing = 0) are excluded from this section.</div>
+    <div style="margin-top:12px;">
+      <button id="downloadOverdue180Btn" class="btn-info" disabled>Download 180+ Days Accounts</button>
+    </div>
+  </div>
+
+  <!-- 180 to 195 Days Overdue Section -->
+  <div class="warning-card" id="overdue180_195Section" style="display:none;">
+    <h2>⏳ Accounts 180–195 Days (Uncollected with Balance)</h2>
+    <p style="margin: 8px 0 12px; color:#5c3a00;">Branch-wise summary of accounts between 180 and 195 days from Sale_Date with non-zero Closing (daily file). Detailed list is available via download.</p>
+    <div class="responsive-table" id="overdue180_195Summary"></div>
+    <div class="note">Accounts with zero balance (Closing = 0) are excluded from this section.</div>
+    <div style="margin-top:12px;">
+      <button id="downloadOverdue180_195Btn" class="btn-info" disabled>Download 180–195 Days Accounts</button>
+    </div>
+  </div>
   </div>
 </div>
 
@@ -699,7 +747,8 @@ function normalizeHeader(header){
   if(["branch","plaza","plaza name","plaza_name","division","area"].includes(h)) return "branch";
   if(["account","account number","account_no","account no","account_number","code"].includes(h)) return "account";
   if(["customer","customer name","customer_name","name"].includes(h)) return "customer";
-  if(["overdue","opening","closing"].includes(h)) return "overdue";
+  if(["overdue","opening"].includes(h)) return "overdue";
+  if(["closing","closing balance","balance"].includes(h)) return "closing";
   if(["credit","cr","amount received","amountreceived","payment"].includes(h)) return "credit";
   if(["debit","dr"].includes(h)) return "debit";
   if(["sale_date","sale date","saledate","date"].includes(h)) return "sale_date";
@@ -773,6 +822,39 @@ function getMonth(val){
   return isNaN(d) ? "Unknown" : (d.getMonth()+1); // 1-12
 }
 
+function excelValueToDate(value){
+  if(!value) return null;
+  if(typeof value === "number"){
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if(parsed && typeof parsed.y === "number"){
+      const d = new Date(parsed.y, (parsed.m||1)-1, parsed.d||1);
+      return isNaN(d)? null : d;
+    }
+    const d2 = new Date((value - 25569) * 86400 * 1000);
+    return isNaN(d2)? null : d2;
+  }
+  const d = new Date(value);
+  return isNaN(d)? null : d;
+}
+
+function monthsBetween(startDate, endDate){
+  if(!startDate || !endDate) return 0;
+  const sY = startDate.getFullYear();
+  const sM = startDate.getMonth();
+  const eY = endDate.getFullYear();
+  const eM = endDate.getMonth();
+  let months = (eY - sY) * 12 + (eM - sM);
+  // adjust if end day is before start day
+  if(endDate.getDate() < startDate.getDate()) months -= 1;
+  return months < 0 ? 0 : months;
+}
+
+function daysBetween(startDate, endDate){
+  if(!startDate || !endDate) return 0;
+  const ms = endDate.setHours(0,0,0,0) - startDate.setHours(0,0,0,0);
+  return Math.floor(ms / (1000*60*60*24));
+}
+
 /* ===== Processing ===== */
 function processData(master, daily){
   console.log("Processing data...");
@@ -784,6 +866,8 @@ function processData(master, daily){
   daily.forEach(r => dMap[makeKey(r)] = r);
   
   const summary = {}, collected = [], notcollected = [], pivot = {};
+  const overdue180 = [];
+  const overdue180_195 = [];
   // New structures for monthly pivots and year-wise lists
   const monthlyPivot = { 2024: {}, 2025: {} }; // {year: {branch: {1..12: count}}}
   const yearNotCollectedList = { 2024: [], 2025: [] }; // detailed rows
@@ -803,6 +887,7 @@ function processData(master, daily){
 
     const dRow = dMap[key];
     const dailyCredit = toNumberSafe(dRow ? dRow.credit : 0);
+    const dailyClosing = toNumberSafe(dRow ? dRow.closing : 0);
     
     // Collection logic: account is considered Collected if Daily file's Credit > 0
     if(dRow && dailyCredit > 0) { 
@@ -821,7 +906,8 @@ function processData(master, daily){
         credit: dRow ? dailyCredit : "(missing)", 
         year: year,
         month: month,
-        dailyOverdue: dRow ? toNumberSafe(dRow.overdue || 0) : "(missing)"
+        dailyOverdue: dRow ? toNumberSafe(dRow.overdue || 0) : "(missing)",
+        closing: dRow ? dailyClosing : 0
       };
       notcollected.push(notRow); 
       
@@ -841,6 +927,34 @@ function processData(master, daily){
         }
         yearNotCollectedList[yearKey].push(notRow);
       }
+
+      // Build 180+ days overdue list (Sale_Date >= 180 days ago and Closing > 0)
+      const saleDate = excelValueToDate(mRow.sale_date);
+      const today = new Date();
+      const ageDays = saleDate ? daysBetween(saleDate, today) : 0;
+      const monthsOld = saleDate ? monthsBetween(saleDate, today) : 0;
+      if(ageDays >= 180 && dailyClosing > 0){
+        overdue180.push({
+          branch: mRow.branch || "UNKNOWN",
+          account: mRow.account || "",
+          customer: mRow.customer || "",
+          sale_date: saleDate ? saleDate.toISOString().slice(0,10) : (mRow.sale_date || ""),
+          months_old: monthsOld,
+          days_old: ageDays,
+          closing: dailyClosing
+        });
+      }
+      if(ageDays >= 180 && ageDays <= 195 && dailyClosing > 0){
+        overdue180_195.push({
+          branch: mRow.branch || "UNKNOWN",
+          account: mRow.account || "",
+          customer: mRow.customer || "",
+          sale_date: saleDate ? saleDate.toISOString().slice(0,10) : (mRow.sale_date || ""),
+          months_old: monthsOld,
+          days_old: ageDays,
+          closing: dailyClosing
+        });
+      }
     }
   }
   
@@ -849,7 +963,7 @@ function processData(master, daily){
   console.log("Collected:", collected.length);
   console.log("Not collected:", notcollected.length);
   
-  return {summary, collected, notcollected, pivot, monthlyPivot, yearNotCollectedList};
+  return {summary, collected, notcollected, pivot, monthlyPivot, yearNotCollectedList, overdue180, overdue180_195};
 }
 
 /* ===== Rendering ===== */
@@ -949,6 +1063,76 @@ function renderStats(data){
   `;
   
   document.getElementById("statsGrid").innerHTML = statsHtml;
+}
+
+function groupAndRenderSummary(list, containerId){
+  const container = document.getElementById(containerId);
+  if(!container) return;
+  if(!list || list.length === 0){
+    container.innerHTML = "<p style='color:#7a4a00;font-style:italic;'>No matching accounts.</p>";
+    return;
+  }
+  const byBranch = {};
+  list.forEach(r => {
+    const b = r.branch || "UNKNOWN";
+    if(!byBranch[b]) byBranch[b] = { count: 0, amount: 0 };
+    byBranch[b].count += 1;
+    byBranch[b].amount += Number(r.closing)||0;
+  });
+  let tCount = 0, tAmt = 0;
+  let html = "<table><tr><th>Branch</th><th>Accounts</th><th>Total Balance</th></tr>";
+  Object.keys(byBranch).sort().forEach(b => {
+    const v = byBranch[b];
+    tCount += v.count; tAmt += v.amount;
+    html += `<tr><td>${sanitizeInput(b)}</td><td style="text-align:right;">${v.count}</td><td style="text-align:right;">${v.amount.toLocaleString()}</td></tr>`;
+  });
+  html += `<tr style=\"background:#f0e6d6;font-weight:bold;\"><td>TOTAL</td><td style=\"text-align:right;\">${tCount}</td><td style=\"text-align:right;\">${tAmt.toLocaleString()}</td></tr>`;
+  html += "</table>";
+  container.innerHTML = html;
+}
+
+function renderOverdue180Summary(list){
+  groupAndRenderSummary(list, "overdue180Summary");
+}
+
+function renderOverdue180_195Summary(list){
+  groupAndRenderSummary(list, "overdue180_195Summary");
+}
+
+function renderOverdue180ByYear(list){
+  const container = document.getElementById("overdue180ByYear");
+  if(!container) return;
+  if(!list || list.length === 0){ container.innerHTML = ""; return; }
+  // Build set of years and branch-year counts
+  const yearsSet = new Set();
+  const map = {}; // branch -> year -> count
+  list.forEach(r => {
+    const y = (r.sale_date && r.sale_date.length>=4) ? new Date(r.sale_date).getFullYear() : "Unknown";
+    yearsSet.add(y);
+    const b = r.branch || "UNKNOWN";
+    if(!map[b]) map[b] = {};
+    map[b][y] = (map[b][y]||0) + 1;
+  });
+  const years = Array.from(yearsSet).sort();
+  let html = "<table><tr><th>Branch</th>" + years.map(y=>`<th>${y}</th>`).join("") + "<th>Total</th></tr>";
+  let colTotals = years.map(()=>0);
+  let grand = 0;
+  Object.keys(map).sort().forEach(b => {
+    let row = `<tr><td>${sanitizeInput(b)}</td>`;
+    let rtot = 0;
+    years.forEach((y, idx) => {
+      const v = map[b][y] || 0;
+      rtot += v; grand += v; colTotals[idx] += v;
+      row += `<td style=\"text-align:center;\">${v}</td>`;
+    });
+    row += `<td style=\"text-align:center;font-weight:bold;\">${rtot}</td></tr>`;
+    html += row;
+  });
+  html += `<tr style=\"background:#f0e6d6;font-weight:bold;\"><td>TOTAL</td>` +
+          years.map((_,i)=>`<td style=\"text-align:center;\">${colTotals[i]}</td>`).join("") +
+          `<td style=\"text-align:center;\">${grand}</td></tr>`;
+  html += "</table>";
+  container.innerHTML = html;
 }
 
 /* ===== Filtering Functions ===== */
@@ -1111,15 +1295,22 @@ async function processFiles(){
     renderMonthlyPivot(2024, res.monthlyPivot[2024], "pivot2024Monthly");
     renderMonthlyPivot(2025, res.monthlyPivot[2025], "pivot2025Monthly");
     renderStats(res);
+    renderOverdue180Summary(res.overdue180);
+    renderOverdue180ByYear(res.overdue180);
+    renderOverdue180_195Summary(res.overdue180_195);
     
-    // Show results sections
+  // Show results sections
     document.getElementById("statsSection").style.display = "block";
     document.getElementById("resultsSection").style.display = "block";
+    document.getElementById("overdue180Section").style.display = res.overdue180 && res.overdue180.length? "block" : "none";
+    document.getElementById("overdue180_195Section").style.display = res.overdue180_195 && res.overdue180_195.length? "block" : "none";
     
     window._exportData = res;
     
-    // Enable download & screenshot buttons
+  // Enable download & screenshot buttons
     document.getElementById("downloadBtn").disabled = false;
+    document.getElementById("downloadOverdue180Btn").disabled = !(res.overdue180 && res.overdue180.length);
+    document.getElementById("downloadOverdue180_195Btn").disabled = !(res.overdue180_195 && res.overdue180_195.length);
     const has2024 = res.yearNotCollectedList[2024].length > 0;
     const has2025 = res.yearNotCollectedList[2025].length > 0;
     document.getElementById("download2024MonthlyBtn").disabled = !has2024;
@@ -1175,7 +1366,7 @@ function downloadExcel(){
     return;
   }
   
-  const {summary,collected,notcollected,pivot}=window._exportData; 
+  const {summary,collected,notcollected,pivot,overdue180,overdue180_195}=window._exportData; 
   const wb=XLSX.utils.book_new();
   
   // Summary sheet with enhanced formatting
@@ -1215,6 +1406,24 @@ function downloadExcel(){
     pArr.push(row);
   }
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pArr),"Pivot");
+
+  // Overdue 180+ sheet
+  if(overdue180 && overdue180.length){
+    const oArr = [["Branch","Account","Customer","Sale_Date","Collection Running Month","Days Old","Closing Balance"]];
+    overdue180.forEach(r=>{
+      oArr.push([r.branch, r.account, r.customer, r.sale_date, r.months_old, r.days_old || "", r.closing]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(oArr), "Overdue180Days");
+  }
+
+  // Overdue 180–195 sheet
+  if(overdue180_195 && overdue180_195.length){
+    const o2Arr = [["Branch","Account","Customer","Sale_Date","Collection Running Month","Days Old","Closing Balance"]];
+    overdue180_195.forEach(r=>{
+      o2Arr.push([r.branch, r.account, r.customer, r.sale_date, r.months_old, r.days_old, r.closing]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(o2Arr), "Overdue180_195Days");
+  }
 
   // 2024 Monthly Not Collected Pivot
   if(window._exportData && window._exportData.monthlyPivot && window._exportData.monthlyPivot[2024]){
@@ -1318,6 +1527,38 @@ document.getElementById("download2025MonthlyBtn").addEventListener("click", ()=>
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pivotAoa), "2025 Monthly Pivot");
   
   XLSX.writeFile(wb, "NotCollected_2025_Monthly_List.xlsx");
+});
+
+// Download 180+ days list
+document.getElementById("downloadOverdue180Btn").addEventListener("click", ()=>{
+  if(!window._exportData || !window._exportData.overdue180 || window._exportData.overdue180.length===0){
+    return showStatus("No 180+ days data to download.", "error");
+  }
+  const list = window._exportData.overdue180;
+  const wb = XLSX.utils.book_new();
+  const header = ["Branch","Account","Customer","Sale_Date","Collection Running Month","Closing Balance"];
+  const aoa = [header];
+  list.forEach(r=>{
+    aoa.push([r.branch, r.account, r.customer, r.sale_date, r.months_old, r.closing]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Overdue180Days");
+  XLSX.writeFile(wb, "Overdue_180_Plus_Accounts.xlsx");
+});
+
+// Download 180–195 days list
+document.getElementById("downloadOverdue180_195Btn").addEventListener("click", ()=>{
+  if(!window._exportData || !window._exportData.overdue180_195 || window._exportData.overdue180_195.length===0){
+    return showStatus("No 180–195 days data to download.", "error");
+  }
+  const list = window._exportData.overdue180_195;
+  const wb = XLSX.utils.book_new();
+  const header = ["Branch","Account","Customer","Sale_Date","Collection Running Month","Days Old","Closing Balance"];
+  const aoa = [header];
+  list.forEach(r=>{
+    aoa.push([r.branch, r.account, r.customer, r.sale_date, r.months_old, r.days_old, r.closing]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Overdue180_195Days");
+  XLSX.writeFile(wb, "Overdue_180_to_195_Days_Accounts.xlsx");
 });
 </script>
 </body>
