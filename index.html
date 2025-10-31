@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Branch-wise Overdue Comparison with Google Drive (Folder-based)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script src="https://apis.google.com/js/api.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -10,7 +11,7 @@
   <style>
     * { box-sizing: border-box; }
     body { 
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
       margin: 0; 
       padding: 20px; 
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -162,20 +163,34 @@
     }
     th, td { 
       border: 1px solid #dee2e6; 
-      padding: 12px; 
-      font-size: 14px; 
+      padding: 14px; 
+      font-size: 15px; 
       text-align: left;
+      font-variant-numeric: tabular-nums; /* clearer, aligned digits */
     }
     th { 
       background: linear-gradient(45deg, #4CAF50, #45a049); 
       color: white; 
-      font-weight: 600;
+      font-weight: 700;
+      letter-spacing: 0.2px;
     }
     tr:nth-child(even) {
       background-color: #f8f9fa;
     }
     tr:hover {
       background-color: #e3f2fd;
+    }
+    /* Make numbers pop anywhere we right/center-align them inline */
+    td[style*="text-align:right"],
+    td[style*="text-align:center"] {
+      color: #111827; /* high-contrast gray-900 */
+      font-weight: 600;
+    }
+    /* Totals rows more eye-catching */
+    tr[style*="font-weight:bold"],
+    td[style*="font-weight:bold"] {
+      font-weight: 700 !important;
+      color: #0f5132; /* deep green for emphasis */
     }
     .loading {
       display: inline-block;
@@ -378,6 +393,9 @@
       <select id="yearFilter" style="padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px;">
         <option value="">All Years</option>
       </select>
+    </div>
+    <div style="margin-bottom:10px;">
+      <button id="shotBranchYear" class="btn-secondary" disabled>Capture Screenshot (Branch-Year)</button>
     </div>
     <div class="responsive-table">
   <div id="pivot"></div>
@@ -985,8 +1003,16 @@ function renderSummary(summary, filteredData = null){
 function renderPivot(pivot){
   if(!pivot||Object.keys(pivot).length===0){document.getElementById("pivot").innerHTML="<p>No data to display</p>";return;}
   const years=new Set(); for(const b in pivot){for(const y in pivot[b]) years.add(y);} const ya=[...years].sort();
-  let html="<table><tr><th>Branch</th>"+ya.map(y=>`<th>${y} (Not Collected)</th>`).join("")+"</tr>";
-  for(const [b,ym] of Object.entries(pivot)){html+=`<tr><td>${b}</td>`+ya.map(y=>`<td>${ym[y]||0}</td>`).join("")+"</tr>";}
+  let html="<table><tr><th>Branch</th>"+ya.map(y=>`<th>${y} (Not Collected)</th>`).join("")+"<th>Total</th></tr>";
+  const colTotals = new Array(ya.length).fill(0);
+  let grandTotal = 0;
+  for(const [b,ym] of Object.entries(pivot)){
+    let rowTotal = 0;
+    const cols = ya.map((y, idx)=>{ const v = ym[y]||0; colTotals[idx]+=v; rowTotal+=v; return `<td style=\"text-align:center;\">${v}</td>`; });
+    grandTotal += rowTotal;
+    html+=`<tr><td>${b}</td>${cols.join("")}<td style=\"text-align:center;font-weight:bold;\">${rowTotal}</td></tr>`;
+  }
+  html+=`<tr style=\"background:#e0e0e0;font-weight:bold;\"><td>TOTAL</td>${colTotals.map(v=>`<td style=\"text-align:center;\">${v}</td>`).join("")}<td style=\"text-align:center;\">${grandTotal}</td></tr>`;
   document.getElementById("pivot").innerHTML=html+"</table>";
 }
 
@@ -1311,6 +1337,7 @@ async function processFiles(){
     document.getElementById("downloadBtn").disabled = false;
     document.getElementById("downloadOverdue180Btn").disabled = !(res.overdue180 && res.overdue180.length);
     document.getElementById("downloadOverdue180_195Btn").disabled = !(res.overdue180_195 && res.overdue180_195.length);
+    document.getElementById("shotBranchYear").disabled = !(res.pivot && Object.keys(res.pivot).length);
     const has2024 = res.yearNotCollectedList[2024].length > 0;
     const has2025 = res.yearNotCollectedList[2025].length > 0;
     document.getElementById("download2024MonthlyBtn").disabled = !has2024;
@@ -1358,6 +1385,16 @@ document.getElementById("shot2025").addEventListener("click", async ()=>{
   const canvas = await html2canvas(sectionEl, {backgroundColor: '#ffffff', scale: 2});
   const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-');
   downloadCanvasAsImage(canvas, `NotCollected_2025_Monthly_Pivot_${ts}.png`);
+});
+
+// Screenshot for Branch-Year pivot
+document.getElementById("shotBranchYear").addEventListener("click", async ()=>{
+  const tableEl = document.getElementById("pivot");
+  if(!tableEl || tableEl.innerHTML.trim()==="") return showStatus("Nothing to capture for Branch-Year.","error");
+  const sectionEl = tableEl.parentElement; // capture the table container area
+  const canvas = await html2canvas(sectionEl, {backgroundColor: '#ffffff', scale: 2});
+  const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-');
+  downloadCanvasAsImage(canvas, `NotCollected_BranchYear_Pivot_${ts}.png`);
 });
 
 function downloadExcel(){
