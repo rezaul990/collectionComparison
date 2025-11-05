@@ -41,12 +41,46 @@
       color: #333;
       font-weight: 400;
     }
+    h3 {
+      margin-top: 25px;
+      margin-bottom: 15px;
+      color: #444;
+      font-weight: 500;
+      font-size: 1.25em;
+    }
+    .header-section {
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 3px solid #4CAF50;
+    }
+    .header-actions {
+      margin-top: 15px;
+    }
+    .main-section {
+      margin: 30px 0;
+      padding: 25px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      border: 1px solid #e9ecef;
+    }
+    .section-title {
+      font-size: 1.75em;
+      font-weight: 600;
+      margin: 0 0 25px 0;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #4CAF50;
+      color: #333;
+      border-left: none;
+      padding-left: 0;
+    }
     .section { 
-      background: #f8f9fa; 
+      background: white; 
       padding: 20px; 
       border-radius: 10px; 
       margin: 20px 0; 
       border: 1px solid #e9ecef;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     .file-input-group {
       display: flex;
@@ -137,11 +171,12 @@
       border-radius: 12px;
       margin: 25px 0;
     }
-    .warning-card h2 {
+    .warning-card h3 {
       margin-top: 0;
       color: #9a5b00;
       border-left: none;
       padding-left: 0;
+      font-size: 1.3em;
     }
     .warning-card .note {
       background: #fff0cc;
@@ -191,6 +226,26 @@
     td[style*="font-weight:bold"] {
       font-weight: 700 !important;
       color: #0f5132; /* deep green for emphasis */
+    }
+    /* Low-performing branches (lowest 10 Coll %) - enhanced readability */
+    tr[style*="background-color:#ffebee"] {
+      font-weight: 700 !important;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+    tr[style*="background-color:#ffebee"] td {
+      font-weight: 700 !important;
+      color: #1a1a1a !important;
+      font-size: 15px;
+      letter-spacing: 0.1px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+    tr[style*="background-color:#ffebee"] td[style*="color: #d32f2f"] {
+      color: #c62828 !important;
+      font-weight: 800 !important;
     }
     .loading {
       display: inline-block;
@@ -269,6 +324,55 @@
       visibility: visible;
       opacity: 1;
     }
+    .filter-controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 15px;
+      padding: 12px;
+      background: #f0f0f0;
+      border-radius: 8px;
+    }
+    .filter-controls input[type="text"],
+    .filter-controls select {
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+      min-width: 150px;
+    }
+    .filter-controls input[type="text"] {
+      flex: 1;
+      min-width: 200px;
+    }
+    .filter-controls select {
+      min-width: 180px;
+    }
+    .local-master-option {
+      margin: 15px 0;
+      padding: 10px;
+      background: #fff9e6;
+      border-radius: 6px;
+      border-left: 3px solid #ffc107;
+    }
+    .local-master-option label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .warning-description {
+      margin: 8px 0 12px;
+      color: #5c3a00;
+      line-height: 1.6;
+    }
+    .sub-section-title {
+      margin: 15px 0 8px;
+      color: #5c3a00;
+      font-size: 1.1em;
+    }
     .responsive-table {
       overflow-x: auto;
     }
@@ -280,168 +384,220 @@
       h1 {
         font-size: 2em;
       }
+      .main-section {
+        padding: 15px;
+        margin: 20px 0;
+      }
+      .section-title {
+        font-size: 1.5em;
+      }
       .file-input-group {
         flex-direction: column;
         align-items: stretch;
       }
       .button-group {
         justify-content: center;
+        flex-direction: column;
       }
       button {
         flex: 1;
         min-width: 120px;
+        width: 100%;
+      }
+      .filter-controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .filter-controls input[type="text"],
+      .filter-controls select {
+        width: 100%;
       }
     }
   </style>
 </head>
 <body>
 <div class="container">
-  <h1>📊 Collection Comparison (Total,Yearly,Monthly)
-  </h1>
-  <div style="text-align: center; margin-bottom: 20px;">
-    <button onclick="showHelp()" class="btn-info" style="margin: 0;">📖 Help & Instructions</button>
+  <!-- Header Section -->
+  <div class="header-section">
+    <h1>📊 Collection Comparison (Total, Yearly, Monthly)</h1>
+    <div class="header-actions">
+      <button onclick="showHelp()" class="btn-info">📖 Help & Instructions</button>
+    </div>
   </div>
 
-  <!-- Authentication Section -->
-  <div class="section">
-  <h2>🔐 Google Drive Authentication</h2>
-    <div class="button-group">
-      <button id="signinBtn">
-        <span id="signinText">Sign in with Google</span>
-        <span id="signinLoading" class="loading" style="display:none;"></span>
-      </button>
-      <button id="signoutBtn" class="btn-secondary" style="display:none;">Sign out</button>
-    </div>
-  <div id="status" class="status info">Not signed in.</div>
-  </div>
-
-  <!-- Master File Section -->
-  <div class="section">
-  <h2>📁 Master File (stored in Drive Folder)</h2>
-    <div class="tooltip">
-      <span class="tooltiptext">Upload your master Excel file to Google Drive. This file will be used as the baseline for comparison. The file will be stored securely in your Google Drive.</span>
-      ℹ️
-    </div>
-    <div class="file-input-group">
-  <input type="file" id="masterFile" accept=".xlsx,.xls" />
+  <!-- Setup Section -->
+  <div class="main-section">
+    <h2 class="section-title">⚙️ Setup & Configuration</h2>
+    
+    <!-- Authentication Section -->
+    <div class="section">
+      <h3>🔐 Google Drive Authentication</h3>
       <div class="button-group">
-        <button id="uploadMasterBtn" disabled>
-          <span id="uploadText">Upload/Replace Master</span>
-          <span id="uploadLoading" class="loading" style="display:none;"></span>
+        <button id="signinBtn">
+          <span id="signinText">Sign in with Google</span>
+          <span id="signinLoading" class="loading" style="display:none;"></span>
         </button>
-        <button id="deleteMasterBtn" class="btn-danger" disabled>Delete Master</button>
+        <button id="signoutBtn" class="btn-secondary" style="display:none;">Sign out</button>
+      </div>
+      <div id="status" class="status info">Not signed in.</div>
+    </div>
+
+    <!-- Master File Section -->
+    <div class="section">
+      <h3>📁 Master File (stored in Drive Folder)</h3>
+      <div class="tooltip">
+        <span class="tooltiptext">Upload your master Excel file to Google Drive. This file will be used as the baseline for comparison. The file will be stored securely in your Google Drive.</span>
+        ℹ️
+      </div>
+      <div class="file-input-group">
+        <input type="file" id="masterFile" accept=".xlsx,.xls" />
+        <div class="button-group">
+          <button id="uploadMasterBtn" disabled>
+            <span id="uploadText">Upload/Replace Master</span>
+            <span id="uploadLoading" class="loading" style="display:none;"></span>
+          </button>
+          <button id="deleteMasterBtn" class="btn-danger" disabled>Delete Master</button>
+        </div>
+      </div>
+      <div class="progress-bar" id="uploadProgress" style="display:none;">
+        <div class="progress-fill" id="uploadProgressFill"></div>
       </div>
     </div>
-    <div class="progress-bar" id="uploadProgress" style="display:none;">
-      <div class="progress-fill" id="uploadProgressFill"></div>
-    </div>
-  </div>
 
-  <!-- Daily File Section -->
-  <div class="section">
-  <h2>📄 Daily File (Local)</h2>
-    <div class="tooltip">
-      <span class="tooltiptext">Select your daily Excel file to compare against the master file. This file should have the same structure as the master file.</span>
-      ℹ️
-    </div>
-    <div class="file-input-group">
-  <input type="file" id="dailyFile" accept=".xlsx,.xls" />
-      <div class="button-group">
-        <button id="processBtn" disabled>
-          <span id="processText">Process Comparison</span>
-          <span id="processLoading" class="loading" style="display:none;"></span>
-        </button>
-        <button id="downloadBtn" class="btn-info" disabled>Download Results Excel</button>
+    <!-- Daily File Section -->
+    <div class="section">
+      <h3>📄 Daily File (Local)</h3>
+      <div class="tooltip">
+        <span class="tooltiptext">Select your daily Excel file to compare against the master file. This file should have the same structure as the master file.</span>
+        ℹ️
+      </div>
+      <div class="file-input-group">
+        <input type="file" id="dailyFile" accept=".xlsx,.xls" />
+        <div class="button-group">
+          <button id="processBtn" disabled>
+            <span id="processText">Process Comparison</span>
+            <span id="processLoading" class="loading" style="display:none;"></span>
+          </button>
+          <button id="downloadBtn" class="btn-info" disabled>Download Results Excel</button>
+        </div>
+      </div>
+      <div class="local-master-option">
+        <label><input type="checkbox" id="useLocalMaster"> Use local master instead of Drive</label>
+        <input type="file" id="localMasterFile" accept=".xlsx,.xls" style="margin-left:10px; display:none;" />
+      </div>
+      <div class="progress-bar" id="processProgress" style="display:none;">
+        <div class="progress-fill" id="processProgressFill"></div>
       </div>
     </div>
-    <div style="margin:10px 0;">
-      <label><input type="checkbox" id="useLocalMaster"> Use local master instead of Drive</label>
-      <input type="file" id="localMasterFile" accept=".xlsx,.xls" style="margin-left:10px; display:none;" />
-    </div>
-    <div class="progress-bar" id="processProgress" style="display:none;">
-      <div class="progress-fill" id="processProgressFill"></div>
-    </div>
-  </div>
-
-  <!-- Statistics Section -->
-  <div class="section" id="statsSection" style="display:none;">
-    <h2>📈 Quick Statistics</h2>
-    <div class="stats-grid" id="statsGrid"></div>
   </div>
 
   <!-- Results Section -->
-  <div class="section" id="resultsSection" style="display:none;">
-    <h2>📊 Branch Summary</h2>
-    <div class="filter-controls">
-      <input type="text" id="branchSearch" placeholder="Search branches..." style="padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px; width: 200px;">
-      <select id="sortBy" style="padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px;">
-        <option value="branch">Sort by Branch</option>
-        <option value="collectible">Sort by Collectible</option>
-        <option value="collected">Sort by Collected</option>
-        <option value="percentage">Sort by Collection %</option>
-        <option value="amount">Sort by Amount</option>
-      </select>
-      <button onclick="resetFilters()" class="btn-secondary">Reset Filters</button>
-    </div>
-    <div class="responsive-table">
-  <div id="summary"></div>
-    </div>
-
-    <h2>📅 Branch-Year Not Collected Qty</h2>
-    <div class="filter-controls">
-      <input type="text" id="pivotSearch" placeholder="Search branches..." style="padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px; width: 200px;">
-      <select id="yearFilter" style="padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px;">
-        <option value="">All Years</option>
-      </select>
-    </div>
-    <div style="margin-bottom:10px;">
-      <button id="shotBranchYear" class="btn-secondary" disabled>Capture Screenshot (Branch-Year)</button>
-    </div>
-    <div class="responsive-table">
-  <div id="pivot"></div>
-    </div>
-
-    <div class="section">
-      <h2>📅 2024 - Branch & Month Wise Not Collected Qty</h2>
-      <div style="margin-bottom:10px;">
-        <button id="download2024MonthlyBtn" disabled>Download 2024 Monthly Not Collected (List)</button>
-        <button id="shot2024" class="btn-secondary" disabled>Capture Screenshot (2024)</button>
+  <div id="resultsSection" style="display:none;">
+    <!-- Statistics Dashboard -->
+    <div class="main-section">
+      <h2 class="section-title">📈 Statistics Dashboard</h2>
+      <div class="section" id="statsSection">
+        <div class="stats-grid" id="statsGrid"></div>
       </div>
-      <div id="pivot2024Monthly"></div>
     </div>
 
-    <div class="section">
-      <h2>📅 2025 - Branch & Month Wise Not Collected Qty</h2>
-      <div style="margin-bottom:10px;">
-        <button id="download2025MonthlyBtn" disabled>Download 2025 Monthly Not Collected (List)</button>
-        <button id="shot2025" class="btn-secondary" disabled>Capture Screenshot (2025)</button>
+    <!-- Summary & Analysis -->
+    <div class="main-section">
+      <h2 class="section-title">📊 Summary & Analysis</h2>
+      
+      <!-- Branch Summary -->
+      <div class="section">
+        <h3>Branch Summary</h3>
+        <div class="filter-controls">
+          <input type="text" id="branchSearch" placeholder="Search branches..." />
+          <select id="sortBy">
+            <option value="branch">Sort by Branch</option>
+            <option value="collectible">Sort by Collectible</option>
+            <option value="collected">Sort by Collected</option>
+            <option value="percentage">Sort by Collection %</option>
+            <option value="amount">Sort by Amount</option>
+          </select>
+          <button onclick="resetFilters()" class="btn-secondary">Reset Filters</button>
+          <button id="shotBranchSummary" class="btn-secondary" disabled>Capture Screenshot</button>
+        </div>
+        <div class="responsive-table">
+          <div id="summary"></div>
+        </div>
       </div>
-      <div id="pivot2025Monthly"></div>
+
+      <!-- Branch-Year Pivot -->
+      <div class="section">
+        <h3>📅 Branch-Year Not Collected Qty</h3>
+        <div class="filter-controls">
+          <input type="text" id="pivotSearch" placeholder="Search branches..." />
+          <select id="yearFilter">
+            <option value="">All Years</option>
+          </select>
+          <button id="shotBranchYear" class="btn-secondary" disabled>Capture Screenshot</button>
+        </div>
+        <div class="responsive-table">
+          <div id="pivot"></div>
+        </div>
+      </div>
     </div>
 
-  <!-- 180+ Days Overdue Warning Section -->
-  <div class="warning-card" id="overdue180Section" style="display:none;">
-    <h2>⏳ Accounts Beyond 180 Days (Uncollected with Balance)</h2>
-    <p style="margin: 8px 0 12px; color:#5c3a00;">Branch-wise summary of accounts ≥ 180 days from Sale_Date with non-zero Closing (daily file). Detailed list is available via download.</p>
-    <div class="responsive-table" id="overdue180Summary"></div>
-    <p style="margin: 12px 0 6px; color:#5c3a00;"><strong>Branch-Year Summary</strong></p>
-    <div class="responsive-table" id="overdue180ByYear"></div>
-    <div class="note">Accounts with zero balance (Closing = 0) are excluded from this section.</div>
-    <div style="margin-top:12px;">
-      <button id="downloadOverdue180Btn" class="btn-info" disabled>Download 180+ Days Accounts</button>
-    </div>
-  </div>
+    <!-- Monthly Analysis -->
+    <div class="main-section">
+      <h2 class="section-title">📅 Monthly Analysis</h2>
+      
+      <!-- 2024 Monthly -->
+      <div class="section">
+        <h3>2024 - Branch & Month Wise Not Collected Qty</h3>
+        <div class="button-group">
+          <button id="download2024MonthlyBtn" disabled>Download 2024 Monthly Not Collected (List)</button>
+          <button id="shot2024" class="btn-secondary" disabled>Capture Screenshot</button>
+        </div>
+        <div class="responsive-table">
+          <div id="pivot2024Monthly"></div>
+        </div>
+      </div>
 
-  <!-- 180 to 195 Days Overdue Section -->
-  <div class="warning-card" id="overdue180_195Section" style="display:none;">
-    <h2>⏳ Accounts 180–195 Days (Uncollected with Balance)</h2>
-    <p style="margin: 8px 0 12px; color:#5c3a00;">Branch-wise summary of accounts between 180 and 195 days from Sale_Date with non-zero Closing (daily file). Detailed list is available via download.</p>
-    <div class="responsive-table" id="overdue180_195Summary"></div>
-    <div class="note">Accounts with zero balance (Closing = 0) are excluded from this section.</div>
-    <div style="margin-top:12px;">
-      <button id="downloadOverdue180_195Btn" class="btn-info" disabled>Download 180–195 Days Accounts</button>
+      <!-- 2025 Monthly -->
+      <div class="section">
+        <h3>2025 - Branch & Month Wise Not Collected Qty</h3>
+        <div class="button-group">
+          <button id="download2025MonthlyBtn" disabled>Download 2025 Monthly Not Collected (List)</button>
+          <button id="shot2025" class="btn-secondary" disabled>Capture Screenshot</button>
+        </div>
+        <div class="responsive-table">
+          <div id="pivot2025Monthly"></div>
+        </div>
+      </div>
     </div>
-  </div>
+
+    <!-- Overdue Accounts -->
+    <div class="main-section">
+      <h2 class="section-title">⚠️ Overdue Accounts</h2>
+      
+      <!-- 180+ Days Overdue -->
+      <div class="warning-card" id="overdue180Section" style="display:none;">
+        <h3>⏳ Accounts Beyond 180 Days (Uncollected with Balance)</h3>
+        <p class="warning-description">Branch-wise summary of accounts ≥ 180 days from Sale_Date with non-zero Closing (daily file). Detailed list is available via download.</p>
+        <div class="responsive-table" id="overdue180Summary"></div>
+        <p class="sub-section-title"><strong>Branch-Year Summary</strong></p>
+        <div class="responsive-table" id="overdue180ByYear"></div>
+        <div class="note">Accounts with zero balance (Closing = 0) are excluded from this section.</div>
+        <div class="button-group" style="margin-top:15px;">
+          <button id="downloadOverdue180Btn" class="btn-info" disabled>Download 180+ Days Accounts</button>
+        </div>
+      </div>
+
+      <!-- 180-195 Days Overdue -->
+      <div class="warning-card" id="overdue180_195Section" style="display:none;">
+        <h3>⏳ Accounts 180–195 Days (Uncollected with Balance)</h3>
+        <p class="warning-description">Branch-wise summary of accounts between 180 and 195 days from Sale_Date with non-zero Closing (daily file). Detailed list is available via download.</p>
+        <div class="responsive-table" id="overdue180_195Summary"></div>
+        <div class="note">Accounts with zero balance (Closing = 0) are excluded from this section.</div>
+        <div class="button-group" style="margin-top:15px;">
+          <button id="downloadOverdue180_195Btn" class="btn-info" disabled>Download 180–195 Days Accounts</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -987,17 +1143,31 @@ function processData(master, daily){
 /* ===== Rendering ===== */
 function renderSummary(summary, filteredData = null){
   const data = filteredData || summary;
-  let html="<table><tr><th>Branch</th><th>Collectible</th><th>Collected</th><th>Collection %</th><th>Total Amount</th></tr>";
-  let tCollectible=0, tCollected=0, tAmount=0;
+  
+  // Calculate percentages and identify lowest 10
+  const branchPercs = [];
   for(const [b,v] of Object.entries(data)){
-    const perc=(v.collectible?((v.collected/v.collectible)*100).toFixed(2):"0"); 
-    html+=`<tr><td>${b}</td><td>${v.collectible.toLocaleString()}</td><td>${v.collected.toLocaleString()}</td><td>${perc}%</td><td>₹${v.collectedAmount.toLocaleString()}</td></tr>`;
+    const perc = v.collectible ? ((v.collected/v.collectible)*100) : 0;
+    branchPercs.push({branch: b, perc: perc});
+  }
+  branchPercs.sort((a, b) => a.perc - b.perc);
+  const lowest10Branches = new Set(branchPercs.slice(0, Math.min(10, branchPercs.length)).map(x => x.branch));
+  
+  let html="<table><tr><th>Branch</th><th>Collectible</th><th>Collected</th><th>Not Collected</th><th>Coll %</th><th>Total Amount Collected</th></tr>";
+  let tCollectible=0, tCollected=0, tNotCollected=0, tAmount=0;
+  for(const [b,v] of Object.entries(data)){
+    const notCollected = v.collectible - v.collected;
+    const perc=(v.collectible?((v.collected/v.collectible)*100).toFixed(2):"0");
+    const isLowest10 = lowest10Branches.has(b);
+    const rowStyle = isLowest10 ? 'style="background-color:#ffebee; border-left: 4px solid #d32f2f;"' : '';
+    html+=`<tr ${rowStyle}><td>${b}</td><td>${v.collectible.toLocaleString()}</td><td>${v.collected.toLocaleString()}</td><td>${notCollected.toLocaleString()}</td><td style="${isLowest10 ? 'font-weight: 800; color: #c62828;' : ''}">${perc}%</td><td>${v.collectedAmount.toLocaleString()}</td></tr>`;
     tCollectible += v.collectible;
     tCollected += v.collected;
+    tNotCollected += notCollected;
     tAmount += v.collectedAmount;
   }
   const tPerc = tCollectible ? ((tCollected/tCollectible)*100).toFixed(2) : "0";
-  html+=`<tr style=\"background:#f0f0f0;font-weight:bold;\"><td>TOTAL</td><td>${tCollectible.toLocaleString()}</td><td>${tCollected.toLocaleString()}</td><td>${tPerc}%</td><td>₹${tAmount.toLocaleString()}</td></tr>`;
+  html+=`<tr style=\"background:#f0f0f0;font-weight:bold;\"><td>TOTAL</td><td>${tCollectible.toLocaleString()}</td><td>${tCollected.toLocaleString()}</td><td>${tNotCollected.toLocaleString()}</td><td>${tPerc}%</td><td>${tAmount.toLocaleString()}</td></tr>`;
   document.getElementById("summary").innerHTML=html+"</table>";
 }
 function renderPivot(pivot){
@@ -1337,6 +1507,7 @@ async function processFiles(){
     document.getElementById("downloadBtn").disabled = false;
     document.getElementById("downloadOverdue180Btn").disabled = !(res.overdue180 && res.overdue180.length);
     document.getElementById("downloadOverdue180_195Btn").disabled = !(res.overdue180_195 && res.overdue180_195.length);
+    document.getElementById("shotBranchSummary").disabled = !(res.summary && Object.keys(res.summary).length);
     document.getElementById("shotBranchYear").disabled = !(res.pivot && Object.keys(res.pivot).length);
     const has2024 = res.yearNotCollectedList[2024].length > 0;
     const has2025 = res.yearNotCollectedList[2025].length > 0;
@@ -1397,6 +1568,16 @@ document.getElementById("shotBranchYear").addEventListener("click", async ()=>{
   downloadCanvasAsImage(canvas, `NotCollected_BranchYear_Pivot_${ts}.png`);
 });
 
+// Screenshot for Branch Summary
+document.getElementById("shotBranchSummary").addEventListener("click", async ()=>{
+  const tableEl = document.getElementById("summary");
+  if(!tableEl || tableEl.innerHTML.trim()==="") return showStatus("Nothing to capture for Branch Summary.","error");
+  const sectionEl = tableEl.closest(".section"); // capture the whole section including the heading
+  const canvas = await html2canvas(sectionEl, {backgroundColor: '#ffffff', scale: 2});
+  const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-');
+  downloadCanvasAsImage(canvas, `Branch_Summary_${ts}.png`);
+});
+
 function downloadExcel(){
   if(!window._exportData) {
     showStatus("No data to export. Please process files first.","error");
@@ -1407,18 +1588,20 @@ function downloadExcel(){
   const wb=XLSX.utils.book_new();
   
   // Summary sheet with enhanced formatting
-  const sArr=[["Branch","Collectible","Collected","Collection %","Total Amount"]];
+  const sArr=[["Branch","Collectible","Collected","Not Collected","Coll %","Total Amount Collected"]];
   for(const [b,v] of Object.entries(summary)){
+    const notCollected = v.collectible - v.collected;
     const percentage = v.collectible > 0 ? (v.collected/v.collectible*100).toFixed(2) : 0;
-    sArr.push([b,v.collectible,v.collected,percentage,v.collectedAmount]);
+    sArr.push([b,v.collectible,v.collected,notCollected,percentage,v.collectedAmount]);
   }
   
   // Add totals row
   const totalCollectible = Object.values(summary).reduce((sum, s) => sum + s.collectible, 0);
   const totalCollected = Object.values(summary).reduce((sum, s) => sum + s.collected, 0);
+  const totalNotCollected = totalCollectible - totalCollected;
   const totalAmount = Object.values(summary).reduce((sum, s) => sum + s.collectedAmount, 0);
   const totalPercentage = totalCollectible > 0 ? (totalCollected/totalCollectible*100).toFixed(2) : 0;
-  sArr.push(["TOTAL", totalCollectible, totalCollected, totalPercentage, totalAmount]);
+  sArr.push(["TOTAL", totalCollectible, totalCollected, totalNotCollected, totalPercentage, totalAmount]);
   
   const summarySheet = XLSX.utils.aoa_to_sheet(sArr);
   XLSX.utils.book_append_sheet(wb, summarySheet, "Summary");
