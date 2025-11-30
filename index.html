@@ -349,6 +349,22 @@
     .filter-controls select {
       min-width: 180px;
     }
+    .filter-controls select[multiple] {
+      min-width: 220px;
+      padding: 4px 8px;
+      background: white;
+      cursor: pointer;
+    }
+    .filter-controls select[multiple] option {
+      padding: 6px 8px;
+      border-radius: 4px;
+      margin: 2px 0;
+    }
+    .filter-controls select[multiple] option:checked {
+      background: linear-gradient(45deg, #4CAF50, #45a049);
+      color: white;
+      font-weight: 600;
+    }
     .local-master-option {
       margin: 15px 0;
       padding: 10px;
@@ -518,6 +534,10 @@
             <option value="amount">Sort by Amount</option>
           </select>
           <button onclick="resetFilters()" class="btn-secondary">Reset Filters</button>
+          <select id="themeBranchSummary" style="padding: 8px; border-radius: 6px; font-weight: 600;">
+            <option value="dark">Dark Teal</option>
+            <option value="light">White/Black</option>
+          </select>
           <button id="shotBranchSummary" class="btn-secondary" disabled>Capture Screenshot</button>
         </div>
         <div class="responsive-table">
@@ -530,8 +550,12 @@
         <h3>📅 Branch-Year Not Collected Qty</h3>
         <div class="filter-controls">
           <input type="text" id="pivotSearch" placeholder="Search branches..." />
-          <select id="yearFilter">
+          <select id="yearFilter" multiple size="5" style="min-width: 200px; height: auto;">
             <option value="">All Years</option>
+          </select>
+          <select id="themeBranchYear" style="padding: 8px; border-radius: 6px; font-weight: 600;">
+            <option value="dark">Dark Teal</option>
+            <option value="light">White/Black</option>
           </select>
           <button id="shotBranchYear" class="btn-secondary" disabled>Capture Screenshot</button>
         </div>
@@ -550,6 +574,10 @@
         <h3>2024 - Branch & Month Wise Not Collected Qty</h3>
         <div class="button-group">
           <button id="download2024MonthlyBtn" disabled>Download 2024 Monthly Not Collected (List)</button>
+          <select id="theme2024" style="padding: 8px; border-radius: 6px; font-weight: 600;">
+            <option value="dark">Dark Teal</option>
+            <option value="light">White/Black</option>
+          </select>
           <button id="shot2024" class="btn-secondary" disabled>Capture Screenshot</button>
         </div>
         <div class="responsive-table">
@@ -562,6 +590,10 @@
         <h3>2025 - Branch & Month Wise Not Collected Qty</h3>
         <div class="button-group">
           <button id="download2025MonthlyBtn" disabled>Download 2025 Monthly Not Collected (List)</button>
+          <select id="theme2025" style="padding: 8px; border-radius: 6px; font-weight: 600;">
+            <option value="dark">Dark Teal</option>
+            <option value="light">White/Black</option>
+          </select>
           <button id="shot2025" class="btn-secondary" disabled>Capture Screenshot</button>
         </div>
         <div class="responsive-table">
@@ -1374,7 +1406,8 @@ function filterPivot() {
   if (!window._exportData) return;
   
   const searchTerm = document.getElementById("pivotSearch").value.toLowerCase();
-  const yearFilter = document.getElementById("yearFilter").value;
+  const yearFilterEl = document.getElementById("yearFilter");
+  const selectedYears = Array.from(yearFilterEl.selectedOptions).map(opt => opt.value).filter(v => v !== "");
   const pivot = window._exportData.pivot;
   
   if (!pivot || Object.keys(pivot).length === 0) {
@@ -1394,15 +1427,25 @@ function filterPivot() {
   let filteredPivot = {};
   for (const [branch, yearData] of Object.entries(pivot)) {
     if (branch.toLowerCase().includes(searchTerm)) {
-      if (yearFilter) {
-        if (yearData[yearFilter] !== undefined) {
-          filteredPivot[branch] = { [yearFilter]: yearData[yearFilter] };
+      if (selectedYears.length > 0) {
+        // Filter to show only selected years
+        const filteredYearData = {};
+        selectedYears.forEach(year => {
+          if (yearData[year] !== undefined) {
+            filteredYearData[year] = yearData[year];
+          }
+        });
+        if (Object.keys(filteredYearData).length > 0) {
+          filteredPivot[branch] = filteredYearData;
         }
       } else {
         filteredPivot[branch] = yearData;
       }
     }
   }
+  
+  // Store filtered pivot for screenshot
+  window._filteredPivot = filteredPivot;
   
   renderPivot(filteredPivot);
 }
@@ -1540,21 +1583,81 @@ function downloadCanvasAsImage(canvas, filename){
   });
 }
 
+function getThemeStyles(theme) {
+  if (theme === 'light') {
+    return {
+      bgColor: '#ffffff',
+      containerBg: '#ffffff',
+      borderColor: '#4CAF50',
+      titleColor: '#000000',
+      titleShadow: 'none',
+      dateColor: '#333333',
+      filterInfoColor: '#000000',
+      filterInfoBg: 'rgba(76, 175, 80, 0.1)',
+      tableBg: '#ffffff',
+      thBg: '#4CAF50',
+      thColor: '#ffffff',
+      thBorder: '#2e7d32',
+      tdBg: '#ffffff',
+      tdColor: '#000000',
+      tdBorder: '#ddd',
+      evenRowBg: '#f5f5f5',
+      totalRowBg: '#e8f5e9',
+      totalRowColor: '#000000',
+      // Red highlighting for lowest performers
+      redRowBg: '#d32f2f',
+      redRowBorder: '#b71c1c',
+      redCellColor: '#ffffff',
+      redPercentColor: '#ffeb3b'
+    };
+  } else {
+    return {
+      bgColor: '#0d4d4d',
+      containerBg: '#0d4d4d',
+      borderColor: '#00bcd4',
+      titleColor: '#ffffff',
+      titleShadow: '2px 2px 4px rgba(0,0,0,0.3)',
+      dateColor: '#e0f7fa',
+      filterInfoColor: '#ffeb3b',
+      filterInfoBg: 'rgba(0, 188, 212, 0.2)',
+      tableBg: '#0d4d4d',
+      thBg: '#00838f',
+      thColor: '#ffffff',
+      thBorder: '#006064',
+      tdBg: '#0d4d4d',
+      tdColor: '#ffffff',
+      tdBorder: '#006064',
+      evenRowBg: '#115555',
+      totalRowBg: '#00695c',
+      totalRowColor: '#ffffff',
+      // Red highlighting for lowest performers
+      redRowBg: '#b71c1c',
+      redRowBorder: '#d32f2f',
+      redCellColor: '#ffffff',
+      redPercentColor: '#ffeb3b'
+    };
+  }
+}
+
 document.getElementById("shot2024").addEventListener("click", async ()=>{
   const tableEl = document.getElementById("pivot2024Monthly");
   if(!tableEl || tableEl.innerHTML.trim()==="") return showStatus("Nothing to capture for 2024.","error");
   
-  // Create a temporary container with header - DARK TEAL THEME
+  // Get selected theme
+  const theme = document.getElementById("theme2024").value;
+  const themeStyles = getThemeStyles(theme);
+  
+  // Create a temporary container with header
   const tempContainer = document.createElement('div');
-  tempContainer.style.cssText = 'position: absolute; left: -9999px; background: #0d4d4d; padding: 40px; font-family: Inter, sans-serif; width: 1400px;';
+  tempContainer.style.cssText = `position: absolute; left: -9999px; background: ${themeStyles.containerBg}; padding: 40px; font-family: Inter, sans-serif; width: 1400px;`;
   
   // Create header
   const header = document.createElement('div');
-  header.style.cssText = 'text-align: center; margin-bottom: 30px; border-bottom: 4px solid #00bcd4; padding-bottom: 20px;';
+  header.style.cssText = `text-align: center; margin-bottom: 30px; border-bottom: 4px solid ${themeStyles.borderColor}; padding-bottom: 20px;`;
   
   const title = document.createElement('h2');
   title.textContent = '2024 No Coll AC';
-  title.style.cssText = 'margin: 0 0 12px 0; font-size: 36px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);';
+  title.style.cssText = `margin: 0 0 12px 0; font-size: 36px; font-weight: 800; color: ${themeStyles.titleColor}; letter-spacing: 0.5px; text-shadow: ${themeStyles.titleShadow};`;
   
   const datetime = document.createElement('div');
   const now = new Date();
@@ -1562,7 +1665,7 @@ document.getElementById("shot2024").addEventListener("click", async ()=>{
     year: 'numeric', month: 'long', day: 'numeric', 
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true 
   });
-  datetime.style.cssText = 'font-size: 18px; font-weight: 700; color: #e0f7fa;';
+  datetime.style.cssText = `font-size: 18px; font-weight: 700; color: ${themeStyles.dateColor};`;
   
   header.appendChild(title);
   header.appendChild(datetime);
@@ -1570,22 +1673,22 @@ document.getElementById("shot2024").addEventListener("click", async ()=>{
   // Clone only the table
   const tableClone = tableEl.cloneNode(true);
   
-  // Apply bold styling to table for better readability - DARK TEAL THEME
+  // Apply bold styling to table for better readability
   const style = document.createElement('style');
   style.textContent = `
-    table { border-collapse: collapse; width: 100%; font-size: 15px; background: #0d4d4d; }
-    th { background: #00838f !important; color: white !important; padding: 16px !important; 
-         font-weight: 800 !important; font-size: 16px !important; border: 2px solid #006064 !important; 
+    table { border-collapse: collapse; width: 100%; font-size: 15px; background: ${themeStyles.tableBg}; }
+    th { background: ${themeStyles.thBg} !important; color: ${themeStyles.thColor} !important; padding: 16px !important; 
+         font-weight: 800 !important; font-size: 16px !important; border: 2px solid ${themeStyles.thBorder} !important; 
          text-align: center !important; letter-spacing: 0.3px !important; }
-    td { padding: 14px !important; border: 2px solid #006064 !important; font-weight: 700 !important; 
-         color: #ffffff !important; font-size: 15px !important; text-align: center !important; background: #0d4d4d !important; }
-    td:first-child { text-align: left !important; font-weight: 800 !important; }
-    tr:nth-child(even) td { background-color: #115555 !important; }
+    td { padding: 14px !important; border: 2px solid ${themeStyles.tdBorder} !important; font-weight: 800 !important; 
+         color: ${themeStyles.tdColor} !important; font-size: 15px !important; text-align: center !important; background: ${themeStyles.tdBg} !important; }
+    td:first-child { text-align: left !important; font-weight: 900 !important; }
+    tr:nth-child(even) td { background-color: ${themeStyles.evenRowBg} !important; }
     tr[style*="font-weight:bold"] td, 
     td[style*="font-weight:bold"] { 
       font-weight: 900 !important; 
-      background: #00695c !important; 
-      color: #ffffff !important;
+      background: ${themeStyles.totalRowBg} !important; 
+      color: ${themeStyles.totalRowColor} !important;
     }
   `;
   
@@ -1597,7 +1700,7 @@ document.getElementById("shot2024").addEventListener("click", async ()=>{
   
   // Capture screenshot with higher quality settings
   const canvas = await html2canvas(tempContainer, {
-    backgroundColor: '#0d4d4d', 
+    backgroundColor: themeStyles.bgColor, 
     scale: 3,
     logging: false,
     useCORS: true,
@@ -1609,24 +1712,29 @@ document.getElementById("shot2024").addEventListener("click", async ()=>{
   document.body.removeChild(tempContainer);
   
   const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-');
-  downloadCanvasAsImage(canvas, `NotCollected_2024_Monthly_Pivot_${ts}.png`);
+  const themeName = theme === 'light' ? 'Light' : 'Dark';
+  downloadCanvasAsImage(canvas, `2024_No_Coll_AC_${themeName}_${ts}.png`);
 });
 
 document.getElementById("shot2025").addEventListener("click", async ()=>{
   const tableEl = document.getElementById("pivot2025Monthly");
   if(!tableEl || tableEl.innerHTML.trim()==="") return showStatus("Nothing to capture for 2025.","error");
   
-  // Create a temporary container with header - DARK TEAL THEME
+  // Get selected theme
+  const theme = document.getElementById("theme2025").value;
+  const themeStyles = getThemeStyles(theme);
+  
+  // Create a temporary container with header
   const tempContainer = document.createElement('div');
-  tempContainer.style.cssText = 'position: absolute; left: -9999px; background: #0d4d4d; padding: 40px; font-family: Inter, sans-serif; width: 1400px;';
+  tempContainer.style.cssText = `position: absolute; left: -9999px; background: ${themeStyles.containerBg}; padding: 40px; font-family: Inter, sans-serif; width: 1400px;`;
   
   // Create header
   const header = document.createElement('div');
-  header.style.cssText = 'text-align: center; margin-bottom: 30px; border-bottom: 4px solid #00bcd4; padding-bottom: 20px;';
+  header.style.cssText = `text-align: center; margin-bottom: 30px; border-bottom: 4px solid ${themeStyles.borderColor}; padding-bottom: 20px;`;
   
   const title = document.createElement('h2');
   title.textContent = '2025 No Coll AC';
-  title.style.cssText = 'margin: 0 0 12px 0; font-size: 36px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);';
+  title.style.cssText = `margin: 0 0 12px 0; font-size: 36px; font-weight: 800; color: ${themeStyles.titleColor}; letter-spacing: 0.5px; text-shadow: ${themeStyles.titleShadow};`;
   
   const datetime = document.createElement('div');
   const now = new Date();
@@ -1634,7 +1742,7 @@ document.getElementById("shot2025").addEventListener("click", async ()=>{
     year: 'numeric', month: 'long', day: 'numeric', 
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true 
   });
-  datetime.style.cssText = 'font-size: 18px; font-weight: 700; color: #e0f7fa;';
+  datetime.style.cssText = `font-size: 18px; font-weight: 700; color: ${themeStyles.dateColor};`;
   
   header.appendChild(title);
   header.appendChild(datetime);
@@ -1642,22 +1750,22 @@ document.getElementById("shot2025").addEventListener("click", async ()=>{
   // Clone only the table
   const tableClone = tableEl.cloneNode(true);
   
-  // Apply bold styling to table for better readability - DARK TEAL THEME
+  // Apply bold styling to table for better readability
   const style = document.createElement('style');
   style.textContent = `
-    table { border-collapse: collapse; width: 100%; font-size: 15px; background: #0d4d4d; }
-    th { background: #00838f !important; color: white !important; padding: 16px !important; 
-         font-weight: 800 !important; font-size: 16px !important; border: 2px solid #006064 !important; 
+    table { border-collapse: collapse; width: 100%; font-size: 15px; background: ${themeStyles.tableBg}; }
+    th { background: ${themeStyles.thBg} !important; color: ${themeStyles.thColor} !important; padding: 16px !important; 
+         font-weight: 800 !important; font-size: 16px !important; border: 2px solid ${themeStyles.thBorder} !important; 
          text-align: center !important; letter-spacing: 0.3px !important; }
-    td { padding: 14px !important; border: 2px solid #006064 !important; font-weight: 700 !important; 
-         color: #ffffff !important; font-size: 15px !important; text-align: center !important; background: #0d4d4d !important; }
-    td:first-child { text-align: left !important; font-weight: 800 !important; }
-    tr:nth-child(even) td { background-color: #115555 !important; }
+    td { padding: 14px !important; border: 2px solid ${themeStyles.tdBorder} !important; font-weight: 800 !important; 
+         color: ${themeStyles.tdColor} !important; font-size: 15px !important; text-align: center !important; background: ${themeStyles.tdBg} !important; }
+    td:first-child { text-align: left !important; font-weight: 900 !important; }
+    tr:nth-child(even) td { background-color: ${themeStyles.evenRowBg} !important; }
     tr[style*="font-weight:bold"] td, 
     td[style*="font-weight:bold"] { 
       font-weight: 900 !important; 
-      background: #00695c !important; 
-      color: #ffffff !important;
+      background: ${themeStyles.totalRowBg} !important; 
+      color: ${themeStyles.totalRowColor} !important;
     }
   `;
   
@@ -1669,7 +1777,7 @@ document.getElementById("shot2025").addEventListener("click", async ()=>{
   
   // Capture screenshot with higher quality settings
   const canvas = await html2canvas(tempContainer, {
-    backgroundColor: '#0d4d4d', 
+    backgroundColor: themeStyles.bgColor, 
     scale: 3,
     logging: false,
     useCORS: true,
@@ -1681,7 +1789,8 @@ document.getElementById("shot2025").addEventListener("click", async ()=>{
   document.body.removeChild(tempContainer);
   
   const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-');
-  downloadCanvasAsImage(canvas, `NotCollected_2025_Monthly_Pivot_${ts}.png`);
+  const themeName = theme === 'light' ? 'Light' : 'Dark';
+  downloadCanvasAsImage(canvas, `2025_No_Coll_AC_${themeName}_${ts}.png`);
 });
 
 // Screenshot for Branch-Year pivot
@@ -1689,17 +1798,21 @@ document.getElementById("shotBranchYear").addEventListener("click", async ()=>{
   const tableEl = document.getElementById("pivot");
   if(!tableEl || tableEl.innerHTML.trim()==="") return showStatus("Nothing to capture for Branch-Year.","error");
   
-  // Create a temporary container with header - DARK TEAL THEME
+  // Get selected theme
+  const theme = document.getElementById("themeBranchYear").value;
+  const themeStyles = getThemeStyles(theme);
+  
+  // Create a temporary container with header
   const tempContainer = document.createElement('div');
-  tempContainer.style.cssText = 'position: absolute; left: -9999px; background: #0d4d4d; padding: 40px; font-family: Inter, sans-serif; width: 1400px;';
+  tempContainer.style.cssText = `position: absolute; left: -9999px; background: ${themeStyles.containerBg}; padding: 40px; font-family: Inter, sans-serif; width: 1400px;`;
   
   // Create header
   const header = document.createElement('div');
-  header.style.cssText = 'text-align: center; margin-bottom: 30px; border-bottom: 4px solid #00bcd4; padding-bottom: 20px;';
+  header.style.cssText = `text-align: center; margin-bottom: 30px; border-bottom: 4px solid ${themeStyles.borderColor}; padding-bottom: 20px;`;
   
   const title = document.createElement('h2');
   title.textContent = 'Branch-Year Not Collected';
-  title.style.cssText = 'margin: 0 0 12px 0; font-size: 36px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);';
+  title.style.cssText = `margin: 0 0 12px 0; font-size: 36px; font-weight: 800; color: ${themeStyles.titleColor}; letter-spacing: 0.5px; text-shadow: ${themeStyles.titleShadow};`;
   
   const datetime = document.createElement('div');
   const now = new Date();
@@ -1707,30 +1820,40 @@ document.getElementById("shotBranchYear").addEventListener("click", async ()=>{
     year: 'numeric', month: 'long', day: 'numeric', 
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true 
   });
-  datetime.style.cssText = 'font-size: 18px; font-weight: 700; color: #e0f7fa;';
+  datetime.style.cssText = `font-size: 18px; font-weight: 700; color: ${themeStyles.dateColor};`;
   
   header.appendChild(title);
   header.appendChild(datetime);
   
+  // Add filter info if years are selected
+  const yearFilterEl = document.getElementById("yearFilter");
+  const selectedYears = Array.from(yearFilterEl.selectedOptions).map(opt => opt.value).filter(v => v !== "");
+  if (selectedYears.length > 0) {
+    const filterInfo = document.createElement('div');
+    filterInfo.textContent = 'Filtered Years: ' + selectedYears.join(', ');
+    filterInfo.style.cssText = `font-size: 16px; font-weight: 600; color: ${themeStyles.filterInfoColor}; margin-top: 10px; background: ${themeStyles.filterInfoBg}; padding: 8px; border-radius: 6px;`;
+    header.appendChild(filterInfo);
+  }
+  
   // Clone only the table
   const tableClone = tableEl.cloneNode(true);
   
-  // Apply bold styling to table for better readability - DARK TEAL THEME
+  // Apply bold styling to table for better readability
   const style = document.createElement('style');
   style.textContent = `
-    table { border-collapse: collapse; width: 100%; font-size: 15px; background: #0d4d4d; }
-    th { background: #00838f !important; color: white !important; padding: 16px !important; 
-         font-weight: 800 !important; font-size: 16px !important; border: 2px solid #006064 !important; 
+    table { border-collapse: collapse; width: 100%; font-size: 15px; background: ${themeStyles.tableBg}; }
+    th { background: ${themeStyles.thBg} !important; color: ${themeStyles.thColor} !important; padding: 16px !important; 
+         font-weight: 800 !important; font-size: 16px !important; border: 2px solid ${themeStyles.thBorder} !important; 
          text-align: center !important; letter-spacing: 0.3px !important; }
-    td { padding: 14px !important; border: 2px solid #006064 !important; font-weight: 700 !important; 
-         color: #ffffff !important; font-size: 15px !important; text-align: center !important; background: #0d4d4d !important; }
-    td:first-child { text-align: left !important; font-weight: 800 !important; }
-    tr:nth-child(even) td { background-color: #115555 !important; }
+    td { padding: 14px !important; border: 2px solid ${themeStyles.tdBorder} !important; font-weight: 800 !important; 
+         color: ${themeStyles.tdColor} !important; font-size: 15px !important; text-align: center !important; background: ${themeStyles.tdBg} !important; }
+    td:first-child { text-align: left !important; font-weight: 900 !important; }
+    tr:nth-child(even) td { background-color: ${themeStyles.evenRowBg} !important; }
     tr[style*="font-weight:bold"] td, 
     td[style*="font-weight:bold"] { 
       font-weight: 900 !important; 
-      background: #00695c !important; 
-      color: #ffffff !important;
+      background: ${themeStyles.totalRowBg} !important; 
+      color: ${themeStyles.totalRowColor} !important;
     }
   `;
   
@@ -1742,7 +1865,7 @@ document.getElementById("shotBranchYear").addEventListener("click", async ()=>{
   
   // Capture screenshot with higher quality settings
   const canvas = await html2canvas(tempContainer, {
-    backgroundColor: '#0d4d4d', 
+    backgroundColor: themeStyles.bgColor, 
     scale: 3,
     logging: false,
     useCORS: true,
@@ -1754,7 +1877,8 @@ document.getElementById("shotBranchYear").addEventListener("click", async ()=>{
   document.body.removeChild(tempContainer);
   
   const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-');
-  downloadCanvasAsImage(canvas, `NotCollected_BranchYear_Pivot_${ts}.png`);
+  const themeName = theme === 'light' ? 'Light' : 'Dark';
+  downloadCanvasAsImage(canvas, `Branch_Year_Not_Collected_${themeName}_${ts}.png`);
 });
 
 // Screenshot for Branch Summary
@@ -1762,17 +1886,21 @@ document.getElementById("shotBranchSummary").addEventListener("click", async ()=
   const tableEl = document.getElementById("summary");
   if(!tableEl || tableEl.innerHTML.trim()==="") return showStatus("Nothing to capture for Branch Summary.","error");
   
-  // Create a temporary container with header - DARK TEAL THEME
+  // Get selected theme
+  const theme = document.getElementById("themeBranchSummary").value;
+  const themeStyles = getThemeStyles(theme);
+  
+  // Create a temporary container with header
   const tempContainer = document.createElement('div');
-  tempContainer.style.cssText = 'position: absolute; left: -9999px; background: #0d4d4d; padding: 40px; font-family: Inter, sans-serif; width: 1200px;';
+  tempContainer.style.cssText = `position: absolute; left: -9999px; background: ${themeStyles.containerBg}; padding: 40px; font-family: Inter, sans-serif; width: 1200px;`;
   
   // Create header
   const header = document.createElement('div');
-  header.style.cssText = 'text-align: center; margin-bottom: 30px; border-bottom: 4px solid #00bcd4; padding-bottom: 20px;';
+  header.style.cssText = `text-align: center; margin-bottom: 30px; border-bottom: 4px solid ${themeStyles.borderColor}; padding-bottom: 20px;`;
   
   const title = document.createElement('h2');
   title.textContent = 'Card Collection Report';
-  title.style.cssText = 'margin: 0 0 12px 0; font-size: 36px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);';
+  title.style.cssText = `margin: 0 0 12px 0; font-size: 36px; font-weight: 800; color: ${themeStyles.titleColor}; letter-spacing: 0.5px; text-shadow: ${themeStyles.titleShadow};`;
   
   const datetime = document.createElement('div');
   const now = new Date();
@@ -1780,7 +1908,7 @@ document.getElementById("shotBranchSummary").addEventListener("click", async ()=
     year: 'numeric', month: 'long', day: 'numeric', 
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true 
   });
-  datetime.style.cssText = 'font-size: 18px; font-weight: 700; color: #e0f7fa;';
+  datetime.style.cssText = `font-size: 18px; font-weight: 700; color: ${themeStyles.dateColor};`;
   
   header.appendChild(title);
   header.appendChild(datetime);
@@ -1793,44 +1921,44 @@ document.getElementById("shotBranchSummary").addEventListener("click", async ()=
   rows.forEach(row => {
     if (row.style.backgroundColor && row.style.backgroundColor.includes('ffebee')) {
       // Apply red background directly
-      row.style.cssText = 'background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%) !important; border-left: 8px solid #ff5252 !important; border-right: 3px solid #ff1744 !important;';
+      row.style.cssText = `background: ${themeStyles.redRowBg} !important; border-left: 8px solid #ff5252 !important; border-right: 3px solid #ff1744 !important;`;
       
       // Style all cells in this row
       const cells = row.querySelectorAll('td');
       cells.forEach((cell, index) => {
-        cell.style.background = '#b71c1c';
-        cell.style.color = '#ffffff';
+        cell.style.background = themeStyles.redRowBg;
+        cell.style.color = themeStyles.redCellColor;
         cell.style.fontWeight = '900';
         cell.style.fontSize = '15px';
         cell.style.padding = '14px';
-        cell.style.border = '2px solid #d32f2f';
-        cell.style.textShadow = '1px 1px 2px rgba(0, 0, 0, 0.5)';
+        cell.style.border = `2px solid ${themeStyles.redRowBorder}`;
+        cell.style.textShadow = theme === 'light' ? 'none' : '1px 1px 2px rgba(0, 0, 0, 0.5)';
         
         // Check if this is the percentage column (usually has red color in original)
         if (cell.style.color && (cell.style.color.includes('c62828') || cell.style.color.includes('d32f2f'))) {
-          cell.style.color = '#ffeb3b';
+          cell.style.color = themeStyles.redPercentColor;
           cell.style.fontSize = '17px';
           cell.style.fontWeight = '900';
-          cell.style.textShadow = '0 0 4px rgba(255, 235, 59, 0.8), 1px 1px 2px rgba(0, 0, 0, 0.5)';
-          cell.style.background = '#d32f2f';
+          cell.style.textShadow = theme === 'light' ? 'none' : '0 0 4px rgba(255, 235, 59, 0.8), 1px 1px 2px rgba(0, 0, 0, 0.5)';
+          cell.style.background = themeStyles.redRowBorder;
           cell.style.borderRadius = '4px';
         }
       });
     }
   });
   
-  // Apply bold styling to table for better readability - DARK TEAL THEME
+  // Apply bold styling to table for better readability
   const style = document.createElement('style');
   style.textContent = `
-    table { border-collapse: collapse; width: 100%; font-size: 15px; background: #0d4d4d; }
-    th { background: #00838f !important; color: white !important; padding: 16px !important; 
-         font-weight: 800 !important; font-size: 16px !important; border: 2px solid #006064 !important; 
+    table { border-collapse: collapse; width: 100%; font-size: 15px; background: ${themeStyles.tableBg}; }
+    th { background: ${themeStyles.thBg} !important; color: ${themeStyles.thColor} !important; padding: 16px !important; 
+         font-weight: 800 !important; font-size: 16px !important; border: 2px solid ${themeStyles.thBorder} !important; 
          text-align: left !important; letter-spacing: 0.3px !important; }
-    td { padding: 14px !important; border: 2px solid #006064 !important; font-weight: 700 !important; 
-         color: #ffffff !important; font-size: 15px !important; background: #0d4d4d !important; }
-    tr:nth-child(even) td { background-color: #115555 !important; }
-    tr[style*="font-weight:bold"] td { font-weight: 800 !important; background: #00695c !important; color: #ffffff !important; }
-    td[style*="text-align:right"], td[style*="text-align:center"] { font-weight: 700 !important; }
+    td { padding: 14px !important; border: 2px solid ${themeStyles.tdBorder} !important; font-weight: 800 !important; 
+         color: ${themeStyles.tdColor} !important; font-size: 15px !important; background: ${themeStyles.tdBg} !important; }
+    tr:nth-child(even) td { background-color: ${themeStyles.evenRowBg} !important; }
+    tr[style*="font-weight:bold"] td { font-weight: 900 !important; background: ${themeStyles.totalRowBg} !important; color: ${themeStyles.totalRowColor} !important; }
+    td[style*="text-align:right"], td[style*="text-align:center"] { font-weight: 800 !important; }
   `;
   
   // Assemble temp container
@@ -1841,7 +1969,7 @@ document.getElementById("shotBranchSummary").addEventListener("click", async ()=
   
   // Capture screenshot with higher quality settings
   const canvas = await html2canvas(tempContainer, {
-    backgroundColor: '#0d4d4d',  // Dark teal background
+    backgroundColor: themeStyles.bgColor,
     scale: 3,  // Increased scale for sharper image
     logging: false,
     useCORS: true,
@@ -1853,7 +1981,8 @@ document.getElementById("shotBranchSummary").addEventListener("click", async ()=
   document.body.removeChild(tempContainer);
   
   const ts = new Date().toISOString().slice(0,19).replace(/:/g,'-');
-  downloadCanvasAsImage(canvas, `Branch_Summary_${ts}.png`);
+  const themeName = theme === 'light' ? 'Light' : 'Dark';
+  downloadCanvasAsImage(canvas, `Branch_Summary_${themeName}_${ts}.png`);
 });
 
 function downloadExcel(){
